@@ -4,9 +4,11 @@
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { buildServer } from './server.js';
+import { mountStore } from './store.js';
 
 export function buildApp(): express.Express {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/healthz', (_req, res) => {
@@ -47,6 +49,8 @@ export function buildApp(): express.Express {
   };
   app.get('/mcp', methodNotAllowed);
   app.delete('/mcp', methodNotAllowed);
+
+  mountStore(app);
 
   // Root: human-readable pointer for anyone who opens the URL in a browser.
   app.get('/', (_req, res) => {
