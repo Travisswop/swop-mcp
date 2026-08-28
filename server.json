@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "co.swopme/swop",
+  "description": "Swop identity, wallets, and prediction markets: resolve swop.id handles to profiles and wallet addresses, and search live prediction markets with real-time prices, orderbooks, and history.",
+  "repository": {
+    "url": "https://github.com/Travisswop/swop-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.swopme.co/mcp"
+    }
+  ]
+}
