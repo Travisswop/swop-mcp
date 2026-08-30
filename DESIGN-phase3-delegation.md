@@ -118,3 +118,8 @@ but description states money movement + confirmation requirement.
 3. Mobile screens (delegation + confirm-tx) and OTA.
 4. `swop_swap`, then `predictions.trade`, then `payments.x402` — each reusing
    preview→policy→execute.
+
+- Future option (decided 2026-08-30): an opt-in dedicated "AI spending wallet"
+  sub-wallet whose balance IS the cap — high-security mode for larger
+  allowances. Default stays the main wallet + caps. Goldman vault wallets are
+  permanently out of scope for MCP delegation (separate custody + policy).
