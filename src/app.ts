@@ -15,8 +15,18 @@ export function buildApp(): express.Express {
     res.json({ ok: true, name: 'swop-mcp' });
   });
 
+  // OAuth discovery: tells MCP clients which authorization server guards the
+  // authed tools (the swop-app-backend /oauth surface).
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    res.json({
+      resource: process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co',
+      authorization_servers: [process.env.SWOP_API_BASE ?? 'https://apps.apiswop.co'],
+      bearer_methods_supported: ['header'],
+    });
+  });
+
   app.post('/mcp', async (req, res) => {
-    const server = buildServer();
+    const server = buildServer(req.header('authorization') ?? undefined);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless
       enableJsonResponse: true,

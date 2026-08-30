@@ -53,7 +53,7 @@ function slimMarket(m: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-export function buildServer(): McpServer {
+export function buildServer(authHeader?: string): McpServer {
   const server = new McpServer({ name: 'swop', version: '0.1.0' });
 
   const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
@@ -236,6 +236,112 @@ export function buildServer(): McpServer {
       annotations: readOnly,
     },
     () => run(() => getJson(PREDICTIONS_API_BASE, '/api/prediction-markets/geoblock')),
+  );
+
+  // ---------- authed tools (Swop account linking) ----------
+  // Available once the user connects their Swop account (OAuth). Without a
+  // token the tools return a clear link-your-account error, which MCP clients
+  // surface alongside the /.well-known/oauth-protected-resource discovery.
+
+  const authedCall = async (method: string, path: string, body?: unknown) => {
+    if (!authHeader) {
+      throw new Error(
+        'Not linked to a Swop account. Connect the Swop connector with authentication (OAuth) to use this tool.',
+      );
+    }
+    const res = await fetch(new URL(path, SWOP_API_BASE).toString(), {
+      method,
+      headers: {
+        authorization: authHeader,
+        accept: 'application/json',
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(20_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) throw new Error(`Swop API ${res.status}: ${json.message ?? 'request failed'}`);
+    return json.data ?? json;
+  };
+
+  const authedRead = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+
+  server.registerTool(
+    'swop_get_my_profile',
+    {
+      title: 'Get my Swop profile',
+      description: 'The linked Swop account: name, email, and SmartSites (handle, bio). Requires connecting your Swop account.',
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/me')),
+  );
+
+  server.registerTool(
+    'swop_get_my_balances',
+    {
+      title: 'Get my wallet balances',
+      description: 'Current wallet balance snapshot for the linked Swop account (total USD and per-asset breakdown).',
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/balances')),
+  );
+
+  server.registerTool(
+    'swop_get_my_orders',
+    {
+      title: 'Get my orders',
+      description: 'Recent marketplace orders for the linked Swop account, both sides: sales of your products and your purchases. Shows payment, escrow/settlement, and fulfillment status.',
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/orders')),
+  );
+
+  server.registerTool(
+    'swop_update_my_smartsite',
+    {
+      title: 'Update my SmartSite',
+      description: 'Update the display name and/or bio of the linked account\'s SmartSite (the primary one unless smartsiteId is given). Only these two fields are editable here.',
+      inputSchema: {
+        name: z.string().max(80).optional().describe('New display name'),
+        bio: z.string().max(500).optional().describe('New bio text'),
+        smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    ({ name, bio, smartsiteId }) =>
+      run(() => authedCall('PATCH', '/api/v5/mcp/smartsite', { name, bio, smartsiteId })),
+  );
+
+  server.registerTool(
+    'swop_create_product',
+    {
+      title: 'Create a product',
+      description:
+        'Create a sellable product on the linked account\'s SmartSite. It becomes instantly purchasable by humans at the SmartSite and by AI agents over x402. Confirm name and price with the user before creating.',
+      inputSchema: {
+        name: z.string().min(1).max(120).describe('Product name'),
+        description: z.string().max(2000).optional().describe('Product description'),
+        priceUsd: z.number().positive().describe('Price in USD (settles in USDC)'),
+        image: z.string().url().optional().describe('Product image URL'),
+        productType: z.string().optional().describe('collectible (default), phygital, membership, coupon'),
+        mintLimit: z.number().int().positive().optional().describe('Inventory limit, default 1'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    ({ name, description, priceUsd, image, productType, mintLimit }) =>
+      run(() =>
+        authedCall('POST', '/api/v5/mcp/products', {
+          name,
+          description,
+          price: priceUsd,
+          image,
+          productType: productType ?? 'collectible',
+          mintLimit: mintLimit ?? 1,
+        }),
+      ),
   );
 
   // ---------- x402 storefront ----------
