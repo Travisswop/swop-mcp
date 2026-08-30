@@ -351,25 +351,14 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Get a swop.id storefront',
       description:
-        "List the products a swop.id sells, with USDC prices and each product's x402 buyUrl. An agent with an x402-capable wallet purchases by GETting the buyUrl: the first request returns HTTP 402 with payment instructions (exact USDC amount, network, pay-to address), and retrying with a signed X-PAYMENT header completes the purchase and returns a receipt. Always show the user the product, price, and seller and get their confirmation before paying.",
+        "List the real products a swop.id sells on their SmartSite, with USDC prices and each product's x402 buyUrl. An agent with an x402-capable wallet purchases by GETting the buyUrl: the first request returns HTTP 402 with payment instructions (exact USDC amount, network, pay-to address), and retrying with a signed X-PAYMENT header completes the purchase and returns a receipt. Always show the user the product, price, and seller and get their confirmation before paying.",
       inputSchema: {
         handle: z.string().min(1).describe('The seller swop.id, e.g. "travis.swop.id"'),
       },
       annotations: readOnly,
     },
     ({ handle }) =>
-      run(async () => {
-        const products = getCatalog(handle);
-        if (!products) throw new Error(`No storefront for ${handle}`);
-        return {
-          handle: handle.toLowerCase(),
-          currency: 'USDC',
-          products: products.map((p) => ({
-            ...p,
-            buyUrl: `${PUBLIC_BASE_URL}/store/${handle.toLowerCase()}/buy/${p.sku}`,
-          })),
-        };
-      }),
+      run(() => getJson(SWOP_API_BASE, `/api/v5/x402/store/${handle.toLowerCase()}`)),
   );
 
   return server;
