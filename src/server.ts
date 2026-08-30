@@ -344,6 +344,40 @@ export function buildServer(authHeader?: string): McpServer {
       ),
   );
 
+  server.registerTool(
+    'swop_get_spending_delegation',
+    {
+      title: 'Get my AI spending settings',
+      description:
+        "The linked account's transaction delegation for AI assistants: whether it's active, per-transaction and daily caps, and how much of today's cap is already spent. Check before attempting a send.",
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/delegation')),
+  );
+
+  server.registerTool(
+    'swop_send',
+    {
+      title: 'Send USDC from my Swop wallet',
+      description:
+        'Send USDC (on Base) from the linked Swop wallet to a swop.id handle or 0x address, within the caps the user set in the Swop app. TWO-STEP: call WITHOUT confirm first to get a preview (resolved recipient, amount, caps); show that summary to the user and get their explicit yes; then call again with the returned previewId and confirm: true. Over-cap or confirm-only settings return a Swop-app approval link instead of executing. Never call with confirm before the user has seen the preview.',
+      inputSchema: {
+        to: z.string().min(1).describe('Recipient: swop.id handle (e.g. "alice.swop.id") or 0x address'),
+        amountUsd: z.number().positive().max(1000).describe('Amount in USD (sent as USDC)'),
+        previewId: z.string().optional().describe('From the preview step'),
+        confirm: z.boolean().optional().describe('true ONLY after the user explicitly confirmed the preview'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ to, amountUsd, previewId, confirm }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/send', { previewId, confirm: true })
+          : authedCall('POST', '/api/v5/mcp/send/preview', { to, amountUsd }),
+      ),
+  );
+
   // ---------- x402 storefront ----------
 
   server.registerTool(
