@@ -1,7 +1,12 @@
 # Directory submission kit — Swop MCP
 
-Live server: https://swop-mcp.vercel.app/mcp (canonical once DNS lands: https://mcp.swopme.co/mcp)
-All tools are read-only public data; no auth in v0.1 (account linking arrives with the OAuth phase).
+Live server: https://mcp.swopme.co/mcp (canonical; swop-mcp.vercel.app is the same deployment)
+22 tools: public data tools (no auth) + account tools behind OAuth 2.1 account
+linking (live — apps.apiswop.co/oauth, QR approval in the Swop app or email
+magic link). Auth mode for listings: "Required when the server asks."
+Commerce is real: every Swop seller's products are purchasable by agents in
+mainnet USDC over x402 (digital = instant settlement to the seller; physical =
+shipping capture + escrow, released on wallet-signed receipt confirmation).
 
 ## Copy
 
@@ -30,7 +35,7 @@ props for games, price history, and live game status.
 over Swop's public APIs; it stores nothing, has no accounts, and handles no
 personal data beyond publicly published swop.id profiles.
 
-**Reviewer test account:** not required in v0.1 (no auth). Note geo: prediction
+**Reviewer test account:** provide a Swop test account for the OAuth-linked tools; public tools need none. Note geo: prediction
 market DATA is available everywhere; trading (not in this version) is geo-gated.
 
 ## Where to submit
