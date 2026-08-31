@@ -378,6 +378,44 @@ export function buildServer(authHeader?: string): McpServer {
       ),
   );
 
+  server.registerTool(
+    'swop_pay_x402_link',
+    {
+      title: 'Pay an x402 payment link',
+      description:
+        "Pay an external x402 payment link (any https URL that returns an HTTP 402 USDC challenge) from the linked user's Swop wallet, within their caps. TWO-STEP like swop_send: call WITHOUT confirm to preview (amount, payee, host, caps), show it to the user and get their explicit yes, then call again with the returned previewId and confirm: true. Over-cap or no delegation returns a Swop-app approval link. Base USDC only.",
+      inputSchema: {
+        url: z.string().url().describe('The x402 payment link (https)'),
+        previewId: z.string().optional().describe('From the preview step'),
+        confirm: z.boolean().optional().describe('true ONLY after the user confirmed the preview'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    ({ url, previewId, confirm }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/pay-x402', { previewId, confirm: true })
+          : authedCall('POST', '/api/v5/mcp/pay-x402/preview', { url }),
+      ),
+  );
+
+  server.registerTool(
+    'swop_get_swap_quote',
+    {
+      title: 'Get a token swap quote',
+      description:
+        "Get a Jupiter swap quote (Solana) for the linked user: how much of the output token they'd get for a given input amount. Read-only — returns the quote and directs the user to complete the swap in the Swop app. Amounts are in the input token's base units.",
+      inputSchema: {
+        inputMint: z.string().describe('Input token mint address'),
+        outputMint: z.string().optional().describe('Output token mint (default USDC)'),
+        amount: z.string().describe('Input amount in base units (e.g. lamports for SOL)'),
+      },
+      annotations: authedRead,
+    },
+    ({ inputMint, outputMint, amount }) =>
+      run(() => authedCall('POST', '/api/v5/mcp/swap/quote', { inputMint, outputMint, amount })),
+  );
+
   // ---------- x402 storefront ----------
 
   server.registerTool(
