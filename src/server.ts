@@ -420,6 +420,31 @@ export function buildServer(authHeader?: string): McpServer {
       run(() => authedCall('POST', '/api/v5/mcp/swap/quote', { inputMint, outputMint, amount, chain })),
   );
 
+  server.registerTool(
+    'swop_perps_order',
+    {
+      title: 'Open or close a perps position',
+      description:
+        "Open or close a Hyperliquid perpetual position for the linked user, within their margin and leverage caps set in the Swop app. The cap is MARGIN per position (e.g. $25) with a leverage ceiling (e.g. 5x) — so $25 at 5x controls ~$125 of exposure. TWO-STEP like swop_send: call WITHOUT confirm to preview (coin, direction, margin, leverage, resulting exposure, mark price); ALWAYS show the user the leverage and exposure and get explicit confirmation; then call again with previewId and confirm: true. reduceOnly:true closes/reduces an existing position. Over-cap or no delegation returns a Swop-app approval link. Perps are leveraged and can be liquidated — make the risk clear to the user.",
+      inputSchema: {
+        coin: z.string().min(1).describe('Perp market symbol, e.g. "BTC", "ETH", "SOL"'),
+        direction: z.enum(['long', 'short']).describe('long = buy/up, short = sell/down'),
+        marginUsd: z.number().positive().max(500).describe('Margin (collateral) in USD to commit'),
+        leverage: z.number().min(1).max(20).describe('Leverage multiplier (capped by the user\'s setting and the market max)'),
+        reduceOnly: z.boolean().optional().describe('true to close/reduce an existing position instead of opening'),
+        previewId: z.string().optional().describe('From the preview step'),
+        confirm: z.boolean().optional().describe('true ONLY after the user confirmed the preview (with leverage + exposure shown)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ coin, direction, marginUsd, leverage, reduceOnly, previewId, confirm }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/perps', { previewId, confirm: true })
+          : authedCall('POST', '/api/v5/mcp/perps/preview', { coin, direction, marginUsd, leverage, reduceOnly }),
+      ),
+  );
+
   // ---------- x402 storefront ----------
 
   server.registerTool(
