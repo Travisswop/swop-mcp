@@ -404,16 +404,20 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Get a token swap quote',
       description:
-        "Get a Jupiter swap quote (Solana) for the linked user: how much of the output token they'd get for a given input amount. Read-only — returns the quote and directs the user to complete the swap in the Swop app. Amounts are in the input token's base units.",
+        "Get a swap quote for the linked user — EVM (via LiFi) or Solana (via Jupiter). Read-only: returns the estimated output and directs the user to complete the swap in the Swop app. For EVM, pass chain plus token ADDRESSES; for Solana, omit chain and pass token MINTS. Amounts are in the input token's base units.",
       inputSchema: {
-        inputMint: z.string().describe('Input token mint address'),
-        outputMint: z.string().optional().describe('Output token mint (default USDC)'),
-        amount: z.string().describe('Input amount in base units (e.g. lamports for SOL)'),
+        inputMint: z.string().describe('Input token: EVM contract address, or Solana mint'),
+        outputMint: z.string().optional().describe('Output token: EVM address, or Solana mint (default USDC)'),
+        amount: z.string().describe('Input amount in base units (wei / lamports / token decimals)'),
+        chain: z
+          .string()
+          .optional()
+          .describe('EVM chain for a LiFi quote: base, ethereum, polygon, arbitrum, optimism, or a numeric chain id. Omit for a Solana (Jupiter) quote.'),
       },
       annotations: authedRead,
     },
-    ({ inputMint, outputMint, amount }) =>
-      run(() => authedCall('POST', '/api/v5/mcp/swap/quote', { inputMint, outputMint, amount })),
+    ({ inputMint, outputMint, amount, chain }) =>
+      run(() => authedCall('POST', '/api/v5/mcp/swap/quote', { inputMint, outputMint, amount, chain })),
   );
 
   // ---------- x402 storefront ----------
