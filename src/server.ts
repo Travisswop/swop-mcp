@@ -445,6 +445,25 @@ export function buildServer(authHeader?: string): McpServer {
       ),
   );
 
+  server.registerTool(
+    'swop_get_product_link',
+    {
+      title: 'Get a shareable product link',
+      description:
+        "Get one shareable link for a product that works for everyone: a person opening it sees a product page with a Buy button; an AI agent hitting it is sent the x402 payment challenge. Use this to share a product in chat, a post, or a message.",
+      inputSchema: {
+        handle: z.string().min(1).describe('Seller swop.id, e.g. "travis.swop.id"'),
+        sku: z.string().min(1).describe('Product sku/id from swop_get_store'),
+      },
+      annotations: readOnly,
+    },
+    ({ handle, sku }) =>
+      run(async () => ({
+        shareUrl: `${PUBLIC_BASE_URL}/p/${handle.toLowerCase()}/${sku}`,
+        note: 'Humans see a product page; AI agents are redirected to the x402 pay endpoint.',
+      })),
+  );
+
   // ---------- x402 storefront ----------
 
   server.registerTool(

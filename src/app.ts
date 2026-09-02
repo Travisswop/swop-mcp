@@ -5,6 +5,7 @@ import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { buildServer } from './server.js';
 import { mountStore } from './store.js';
+import { mountShare } from './share.js';
 
 export function buildApp(): express.Express {
   const app = express();
@@ -61,6 +62,7 @@ export function buildApp(): express.Express {
   app.delete('/mcp', methodNotAllowed);
 
   mountStore(app);
+  mountShare(app);
 
   // Root: human-readable pointer for anyone who opens the URL in a browser.
   app.get('/', (_req, res) => {
