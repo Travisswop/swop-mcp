@@ -5,6 +5,10 @@ import { getJson, postJson, UpstreamError } from './http-client.js';
 import { getCatalog } from './store.js';
 
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co';
+// Product pages are served by the Swop app, not by this MCP server. Building
+// share links off PUBLIC_BASE_URL pointed them at mcp.swopme.co/p/... which
+// has never served that route, so every link this tool handed out was a 404.
+const APP_BASE_URL = process.env.PUBLIC_APP_BASE_URL ?? 'https://www.swopme.app';
 
 type ToolResult = {
   content: Array<{ type: 'text'; text: string }>;
@@ -459,7 +463,7 @@ export function buildServer(authHeader?: string): McpServer {
     },
     ({ handle, sku }) =>
       run(async () => ({
-        shareUrl: `${PUBLIC_BASE_URL}/p/${handle.toLowerCase()}/${sku}`,
+        shareUrl: `${APP_BASE_URL}/p/${handle.toLowerCase()}/${sku}`,
         note: 'Humans see a product page; AI agents are redirected to the x402 pay endpoint.',
       })),
   );
