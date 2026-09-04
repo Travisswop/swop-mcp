@@ -1,9 +1,9 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Swop for ChatGPT &amp; Claude</title>
-<meta name="description" content="Use Swop from ChatGPT and Claude — look people up, browse prediction markets and stores, edit your profile by chat, and pay, swap, and send with your wallet.">
-<meta property="og:title" content="Swop for ChatGPT &amp; Claude">
+<title>Swop for ChatGPT, Claude &amp; Grok</title>
+<meta name="description" content="Use Swop from ChatGPT, Claude, and Grok — look people up, browse prediction markets and stores, buy from creators, edit your profile by chat, and pay, swap, and send with your wallet.">
+<meta property="og:title" content="Swop for ChatGPT, Claude &amp; Grok">
 <meta property="og:description" content="Connect Swop to any AI. Identity, prediction markets, stores, profile editing, and wallet actions — by chatting.">
 <style>
   :root{
@@ -29,7 +29,10 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1.2rem 1.3rem;margin:.8rem 0;
     box-shadow:0 6px 30px rgba(20,18,40,.05)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
-  @media (max-width:640px){.grid{grid-template-columns:1fr}h1{font-size:1.7rem}}
+  .grid.three{grid-template-columns:1fr 1fr 1fr}
+  @media (max-width:640px){.grid,.grid.three{grid-template-columns:1fr}h1{font-size:1.7rem}}
+  .app{display:flex;align-items:center;gap:.6rem;font-size:.92rem;color:var(--muted)}
+  .app b{color:var(--ink)}
   .pill{font-size:.72rem;font-weight:700;padding:.16rem .5rem;border-radius:999px;display:inline-block;margin-bottom:.5rem}
   .now{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
   .soon{color:var(--accent-ink);background:var(--soft)}
@@ -53,8 +56,8 @@
 <body><div class="wrap">
 <header>
   <div class="badge">Model Context Protocol</div>
-  <h1>Use Swop from ChatGPT &amp; Claude</h1>
-  <p class="sub">Look people up by <b>swop.id</b>, browse live prediction markets and creator stores, edit your profile by chatting — and, with your wallet connected, pay, swap, and send in USDC.</p>
+  <h1>Use Swop from ChatGPT, Claude &amp; Grok</h1>
+  <p class="sub">Look people up by <b>swop.id</b>, browse live prediction markets and creator stores, buy from creators, edit your profile by chatting — and, with your wallet connected, pay, swap, and send in USDC.</p>
 </header>
 
 <h2>Two ways to connect</h2>
@@ -62,7 +65,7 @@
   <div class="card">
     <span class="pill now">Available now</span>
     <h3>Add by URL</h3>
-    <p class="mut" style="margin:.2rem 0 0">Paste Swop's server into ChatGPT or Claude as a custom connector. You get the <b>full toolkit</b>, including wallet actions — each gated by your sign-in and the spending caps you set in the Swop app.</p>
+    <p class="mut" style="margin:.2rem 0 0">Paste Swop's server into ChatGPT, Claude, or Grok as a custom connector. You get the <b>full toolkit</b>, including wallet actions — each gated by your sign-in and the spending caps you set in the Swop app.</p>
   </div>
   <div class="card">
     <span class="pill soon">In review</span>
@@ -73,7 +76,7 @@
 
 <h2>Add by URL — the endpoint</h2>
 <div class="urlbox"><span class="url">https://mcp.swopme.co/mcp</span></div>
-<div class="grid">
+<div class="grid three">
   <div class="card">
     <h3>In ChatGPT</h3>
     <ol>
@@ -90,6 +93,15 @@
       <li><b>Add custom connector</b>.</li>
       <li>Paste <code>https://mcp.swopme.co/mcp</code> and connect.</li>
       <li>Approve the Swop sign-in when prompted.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3>In Grok</h3>
+    <ol>
+      <li>Open <b>grok.com/connectors</b>.</li>
+      <li><b>New Connector</b> → <b>Custom</b>.</li>
+      <li>Paste <code>https://mcp.swopme.co/mcp</code> and save.</li>
+      <li>Sign in with Swop when a tool needs your account.</li>
     </ol>
   </div>
 </div>
@@ -110,7 +122,7 @@
     <h3>Manage your Swop — sign in</h3>
     <ul class="tools">
       <li><span class="t">Edit your SmartSite</span> — update your name &amp; bio by chat</li>
-      <li><span class="t">Create a product</span> — instantly sellable to people and AI agents</li>
+      <li><span class="t">Create a product</span> — instantly sellable to people and AI agents. Already have a store? Agents can buy from it today, nothing to set up.</li>
       <li><span class="t">Check balances &amp; orders</span></li>
     </ul>
   </div>
@@ -119,11 +131,18 @@
   <h3>Move money — sign in + your consent</h3>
   <ul class="tools">
     <li><span class="t">Send USDC</span> to any swop.id or address, within your caps</li>
+    <li><span class="t">Buy from any Swop store</span> — digital items deliver instantly; physical items collect your shipping address and hold payment in escrow until delivery</li>
     <li><span class="t">Pay an x402 link</span> from your wallet</li>
     <li><span class="t">Get a swap quote</span> or <span class="t">swap</span> on EVM chains</li>
     <li><span class="t">Open or close a perps position</span> within your margin &amp; leverage caps</li>
   </ul>
   <p class="mut" style="font-size:.88rem;margin:.5rem 0 0">Every money action is bounded by the per-transaction and daily limits you set in the Swop app, and is fully revocable. Nothing moves without your delegation.</p>
+</div>
+
+<h2>Where you stay in control</h2>
+<div class="card">
+  <p class="app" style="margin:0"><b>Swop app → Settings → AI assistants.</b>&nbsp;Turn AI spending on or off, set the per-transaction and daily caps, allow perps trades and token swaps separately, and disconnect any assistant. The same page on the web: <a href="https://www.swopme.app/ai-assistants">swopme.app/ai-assistants</a>.</p>
+  <p class="mut" style="font-size:.88rem;margin:.6rem 0 0">Linking an account never needs a password in the chat. The assistant opens a Swop sign-in page; approving it in the app finishes the link. Every action an assistant takes shows up in your activity like any other transaction.</p>
 </div>
 
 <h2>Add by URL vs the directory plugin</h2>
