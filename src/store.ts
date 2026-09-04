@@ -74,11 +74,19 @@ function paymentRequirements(handle: string, product: Product, resource: string)
   };
 }
 
+// The facilitator takes the DECODED payment payload (the base64 X-PAYMENT
+// header parsed back to JSON), not the raw header string.
 async function facilitatorCall(path: 'verify' | 'settle', paymentHeader: string, requirements: unknown) {
+  let paymentPayload: unknown;
+  try {
+    paymentPayload = JSON.parse(Buffer.from(paymentHeader, 'base64').toString('utf8'));
+  } catch {
+    return { ok: false, body: { isValid: false, invalidReason: 'malformed X-PAYMENT header' } };
+  }
   const res = await fetch(`${FACILITATOR}/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ x402Version: 1, paymentHeader, paymentRequirements: requirements }),
+    body: JSON.stringify({ x402Version: 1, paymentPayload, paymentRequirements: requirements }),
     signal: AbortSignal.timeout(20_000),
   });
   return { ok: res.ok, body: await res.json().catch(() => ({})) as Record<string, unknown> };

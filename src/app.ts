@@ -16,6 +16,14 @@ export function buildApp(): express.Express {
     res.json({ ok: true, name: 'swop-mcp' });
   });
 
+  // OpenAI Plugins Directory domain verification. Serves ONLY this plugin's
+  // challenge token as plain text (the portal rejects JSON/multiple tokens).
+  app.get('/.well-known/openai-apps-challenge', (_req, res) => {
+    res
+      .type('text/plain')
+      .send(process.env.OPENAI_APPS_CHALLENGE_TOKEN ?? 'ExCkQW-dMw3B8g8ZWxTB2NHuGmqeRlI7TxGSS1nUcNw');
+  });
+
   // OAuth discovery: tells MCP clients which authorization server guards the
   // authed tools (the swop-app-backend /oauth surface).
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
@@ -64,15 +72,9 @@ export function buildApp(): express.Express {
   mountStore(app);
   mountShare(app);
 
-  // Root: human-readable pointer for anyone who opens the URL in a browser.
-  app.get('/', (_req, res) => {
-    res.json({
-      name: 'Swop MCP server',
-      endpoint: '/mcp',
-      transport: 'streamable-http',
-      docs: 'https://swopme.co',
-    });
-  });
+  // The human-facing landing page for the site root is served statically from
+  // public/index.html — Vercel's filesystem check handles "/" before the
+  // catch-all rewrite to /api (the rewrite mishandles the bare root).
 
   return app;
 }
