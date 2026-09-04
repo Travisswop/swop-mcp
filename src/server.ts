@@ -304,19 +304,79 @@ export function buildServer(authHeader?: string): McpServer {
   );
 
   server.registerTool(
+    'swop_get_my_smartsite',
+    {
+      title: 'See my SmartSite',
+      description:
+        "Get the linked account's current SmartSite so you can see it BEFORE editing: name, bio, appearance (background/theme), the links already on it (icons, buttons, info bars, with their item ids for removal), product tiles, and a viewUrl to preview it. ALWAYS call this before adding or changing things so edits stay additive.",
+      inputSchema: {
+        smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
+      },
+      annotations: authedRead,
+    },
+    ({ smartsiteId }) =>
+      run(() =>
+        authedCall('GET', `/api/v5/mcp/smartsite${smartsiteId ? `?smartsiteId=${encodeURIComponent(smartsiteId)}` : ''}`),
+      ),
+  );
+
+  server.registerTool(
     'swop_update_my_smartsite',
     {
-      title: 'Update my SmartSite',
-      description: 'Update the display name and/or bio of the linked account\'s SmartSite (the primary one unless smartsiteId is given). Only these two fields are editable here.',
+      title: 'Edit my SmartSite (name, bio, background)',
+      description:
+        "Edit the linked account's SmartSite: display name, bio, and appearance (background color, a gradient of hex stops, a background image URL, theme/font color, font family, or header layout). Pass only what you want to change. For adding links/buttons/info bars use swop_add_link; for products use swop_create_product / swop_feature_product.",
       inputSchema: {
         name: z.string().max(80).optional().describe('New display name'),
         bio: z.string().max(500).optional().describe('New bio text'),
+        backgroundColor: z.string().optional().describe('Solid background hex, e.g. "#0b0b0f"'),
+        backgroundGradient: z.array(z.string()).max(8).optional().describe('Gradient hex stops, e.g. ["#5b3df5","#0b0b0f"] (clears the solid color)'),
+        backgroundImg: z.string().url().optional().describe('Background/wallpaper image URL'),
+        themeColor: z.string().optional().describe('Accent/theme hex color'),
+        fontColor: z.string().optional().describe('Primary font hex color'),
+        fontFamily: z.string().optional().describe('Font family name'),
+        headerFormat: z.enum(['centered', 'left', 'cover', 'hero', 'orbit', 'card', 'bar']).optional().describe('Header layout style'),
         smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
-    ({ name, bio, smartsiteId }) =>
-      run(() => authedCall('PATCH', '/api/v5/mcp/smartsite', { name, bio, smartsiteId })),
+    (args) => run(() => authedCall('PATCH', '/api/v5/mcp/smartsite', args)),
+  );
+
+  server.registerTool(
+    'swop_add_link',
+    {
+      title: 'Add a link to my SmartSite',
+      description:
+        "Add a link to the linked account's SmartSite, with smart placement. TWO STEPS: (1) call with just the url — the tool detects what kind of link it is (payment like Venmo/PayPal/Cash App, social, contact, website) and returns a recommendation with a text preview of each layout: a small ICON in the icon row, a link BUTTON tile, or a full-width INFOBAR call-to-action card. Show the user the message + previews and ask which they want. (2) call again with the same url plus displayAs = 'icon' | 'button' | 'infobar' to place it. You can override title / buttonName / description / style ('solid' | 'glass') for an info bar. Returns a viewUrl to preview the result.",
+      inputSchema: {
+        url: z.string().describe('The link to add (any URL, or mailto:/tel:)'),
+        displayAs: z.enum(['icon', 'button', 'infobar']).optional().describe("Omit first to get a placement suggestion; then set to place it"),
+        title: z.string().max(120).optional().describe('Override the label/title'),
+        buttonName: z.string().max(40).optional().describe('Info-bar button text (e.g. "Pay", "Book")'),
+        description: z.string().max(300).optional().describe('Info-bar description line'),
+        style: z.enum(['solid', 'glass']).optional().describe("Info-bar card style (default solid)"),
+        smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    (args) => run(() => authedCall('POST', '/api/v5/mcp/smartsite/link', args)),
+  );
+
+  server.registerTool(
+    'swop_remove_link',
+    {
+      title: 'Remove a SmartSite link',
+      description:
+        "Remove a link/icon/info-bar/product tile from the SmartSite. Get the item's id and contentType from swop_get_my_smartsite (icons → 'socialTop', buttons → 'socialLarge', info bars → 'infoBar', product tiles → 'marketPlace'). Confirm with the user first.",
+      inputSchema: {
+        contentType: z.enum(['socialTop', 'socialLarge', 'infoBar', 'marketPlace']).describe('The kind of item to remove'),
+        itemId: z.string().describe('The item id from swop_get_my_smartsite'),
+        smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    (args) => run(() => authedCall('DELETE', '/api/v5/mcp/smartsite/link', args)),
   );
 
   server.registerTool(
@@ -344,6 +404,64 @@ export function buildServer(authHeader?: string): McpServer {
           image,
           productType: productType ?? 'collectible',
           mintLimit: mintLimit ?? 1,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    'swop_feature_product',
+    {
+      title: 'Feature a product on my SmartSite',
+      description:
+        "Put an already-created product (from swop_create_product) onto the SmartSite as a visible product tile so visitors see and can buy it. Pass the product's templateId (returned by swop_create_product). Use swop_create_product first to make the product, then this to display it.",
+      inputSchema: {
+        templateId: z.string().describe('The product/template id from swop_create_product'),
+        carouselTitle: z.string().max(80).optional().describe('Optional heading for the product section'),
+        smartsiteId: z.string().optional().describe('Specific SmartSite id (default: primary)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    (args) => run(() => authedCall('POST', '/api/v5/mcp/smartsite/feature-product', args)),
+  );
+
+  server.registerTool(
+    'swop_list_my_products',
+    {
+      title: 'List my products',
+      description:
+        "List the linked account's products (each with its id, name, price, inventory, and status). Use the id with swop_update_product (to edit or unlist) or swop_feature_product (to show it on the SmartSite).",
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/products')),
+  );
+
+  server.registerTool(
+    'swop_update_product',
+    {
+      title: 'Edit or unlist a product',
+      description:
+        "Edit one of the linked account's products, or unlist it. Pass its productId (from swop_list_my_products) plus only the fields to change: name, description, priceUsd, image, mintLimit. To unlist/remove it from sale, set status to 'archived'. Confirm price and name changes with the user first.",
+      inputSchema: {
+        productId: z.string().describe('The product id from swop_list_my_products'),
+        name: z.string().max(120).optional().describe('New product name'),
+        description: z.string().max(2000).optional().describe('New description'),
+        priceUsd: z.number().positive().optional().describe('New price in USD (settles in USDC)'),
+        image: z.string().url().optional().describe('New product image URL'),
+        mintLimit: z.number().int().positive().optional().describe('New inventory limit'),
+        status: z.enum(['active', 'archived']).optional().describe("Set 'archived' to unlist the product"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ productId, name, description, priceUsd, image, mintLimit, status }) =>
+      run(() =>
+        authedCall('PATCH', `/api/v5/mcp/products/${encodeURIComponent(productId)}`, {
+          title: name,
+          description,
+          ...(priceUsd !== undefined ? { price: priceUsd } : {}),
+          image,
+          ...(mintLimit !== undefined ? { mintLimit } : {}),
+          status,
         }),
       ),
   );
@@ -422,6 +540,32 @@ export function buildServer(authHeader?: string): McpServer {
     },
     ({ inputMint, outputMint, amount, chain }) =>
       run(() => authedCall('POST', '/api/v5/mcp/swap/quote', { inputMint, outputMint, amount, chain })),
+  );
+
+  server.registerTool(
+    'swop_swap',
+    {
+      title: 'Execute a token swap (EVM)',
+      description:
+        "Execute an on-chain token swap from the linked user's Swop wallet, within their delegation caps. EVM only (via LiFi); Solana swaps still complete in the app. TWO-STEP like swop_send: call WITHOUT confirm to preview (estimated output, min received, USD value, caps); show the user the estimated output and get their explicit yes; then call again with the returned previewId and confirm: true. Gas is sponsored, and any needed token approval is handled automatically. Over-cap or no delegation returns a Swop-app approval link. Pass chain plus token ADDRESSES; amount is in the input token's base units.",
+      inputSchema: {
+        inputMint: z.string().describe('Input token EVM contract address'),
+        outputMint: z.string().describe('Output token EVM contract address'),
+        amount: z.string().describe('Input amount in base units (wei / token decimals)'),
+        chain: z
+          .string()
+          .describe('EVM chain: base, ethereum, polygon, arbitrum, or a numeric chain id'),
+        previewId: z.string().optional().describe('From the preview step'),
+        confirm: z.boolean().optional().describe('true ONLY after the user confirmed the preview (output shown)'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    ({ inputMint, outputMint, amount, chain, previewId, confirm }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/swap', { previewId, confirm: true })
+          : authedCall('POST', '/api/v5/mcp/swap/preview', { inputMint, outputMint, amount, chain }),
+      ),
   );
 
   server.registerTool(

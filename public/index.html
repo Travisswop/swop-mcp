@@ -1,0 +1,150 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swop for ChatGPT &amp; Claude</title>
+<meta name="description" content="Use Swop from ChatGPT and Claude — look people up, browse prediction markets and stores, edit your profile by chat, and pay, swap, and send with your wallet.">
+<meta property="og:title" content="Swop for ChatGPT &amp; Claude">
+<meta property="og:description" content="Connect Swop to any AI. Identity, prediction markets, stores, profile editing, and wallet actions — by chatting.">
+<style>
+  :root{
+    --bg:#f6f5fb;--card:#fff;--ink:#16181d;--muted:#5c6270;--line:#e4e2ec;
+    --accent:#5b3df5;--accent-ink:#4a30cc;--ok:#0d7a4f;--soft:#f0eefe;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#101014;--card:#1a1a22;--ink:#ecebf3;--muted:#9a9cab;--line:#2a2a35;
+    --accent:#8f7bff;--accent-ink:#b9adff;--ok:#37c98a;--soft:#20202c;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  .wrap{max-width:52rem;margin:0 auto;padding:2.2rem 1.2rem 3rem}
+  header{text-align:center;padding:1.4rem 0 .6rem}
+  .badge{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--accent-ink);background:var(--soft);padding:.3rem .6rem;border-radius:999px;margin-bottom:.9rem}
+  h1{font-size:2rem;line-height:1.15;margin:.2rem 0 .5rem}
+  .sub{color:var(--muted);font-size:1.06rem;max-width:34rem;margin:0 auto}
+  h2{font-size:1.25rem;margin:2.2rem 0 .8rem}
+  h3{font-size:1rem;margin:0 0 .3rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1.2rem 1.3rem;margin:.8rem 0;
+    box-shadow:0 6px 30px rgba(20,18,40,.05)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+  @media (max-width:640px){.grid{grid-template-columns:1fr}h1{font-size:1.7rem}}
+  .pill{font-size:.72rem;font-weight:700;padding:.16rem .5rem;border-radius:999px;display:inline-block;margin-bottom:.5rem}
+  .now{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+  .soon{color:var(--accent-ink);background:var(--soft)}
+  code,.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}
+  .urlbox{display:flex;align-items:center;gap:.6rem;background:var(--soft);border:1px solid var(--line);
+    border-radius:11px;padding:.7rem .9rem;margin:.6rem 0;font-family:ui-monospace,Menlo,monospace;
+    font-size:.92rem;word-break:break-all}
+  ol{margin:.4rem 0 .2rem;padding-left:1.2rem}ol li{margin:.35rem 0}
+  ul.tools{list-style:none;padding:0;margin:.3rem 0}
+  ul.tools li{padding:.28rem 0;border-bottom:1px solid var(--line);font-size:.94rem}
+  ul.tools li:last-child{border-bottom:0}
+  .t{font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:.92rem;margin-top:.4rem;display:block;overflow-x:auto}
+  th,td{text-align:left;padding:.55rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  td.c{text-align:center;white-space:nowrap}
+  .yes{color:var(--ok);font-weight:700}.mut{color:var(--muted)}
+  footer{margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--muted);font-size:.86rem;text-align:center}
+  footer a{margin:0 .5rem}
+</style></head>
+<body><div class="wrap">
+<header>
+  <div class="badge">Model Context Protocol</div>
+  <h1>Use Swop from ChatGPT &amp; Claude</h1>
+  <p class="sub">Look people up by <b>swop.id</b>, browse live prediction markets and creator stores, edit your profile by chatting — and, with your wallet connected, pay, swap, and send in USDC.</p>
+</header>
+
+<h2>Two ways to connect</h2>
+<div class="grid">
+  <div class="card">
+    <span class="pill now">Available now</span>
+    <h3>Add by URL</h3>
+    <p class="mut" style="margin:.2rem 0 0">Paste Swop's server into ChatGPT or Claude as a custom connector. You get the <b>full toolkit</b>, including wallet actions — each gated by your sign-in and the spending caps you set in the Swop app.</p>
+  </div>
+  <div class="card">
+    <span class="pill soon">In review</span>
+    <h3>Swop directory plugin</h3>
+    <p class="mut" style="margin:.2rem 0 0">Search “Swop” in ChatGPT's plugin directory and add it in one click — discovery and profile editing by chat. Money actions hand off to the Swop app for you to approve.</p>
+  </div>
+</div>
+
+<h2>Add by URL — the endpoint</h2>
+<div class="urlbox"><span class="url">https://mcp.swopme.co/mcp</span></div>
+<div class="grid">
+  <div class="card">
+    <h3>In ChatGPT</h3>
+    <ol>
+      <li>Settings → <b>Connectors</b> (enable Developer mode if prompted).</li>
+      <li><b>Add custom connector</b>.</li>
+      <li>Paste <code>https://mcp.swopme.co/mcp</code> and connect.</li>
+      <li>Sign in with Swop when a tool needs your account.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3>In Claude</h3>
+    <ol>
+      <li>Settings → <b>Connectors</b>.</li>
+      <li><b>Add custom connector</b>.</li>
+      <li>Paste <code>https://mcp.swopme.co/mcp</code> and connect.</li>
+      <li>Approve the Swop sign-in when prompted.</li>
+    </ol>
+  </div>
+</div>
+<p class="mut" style="font-size:.9rem">Public tools (identity, markets, stores) work with no sign-in. Personal tools ask you to sign in with Swop over OAuth; wallet actions additionally respect the caps and consent you set in the app.</p>
+
+<h2>What you can do</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Discover — no sign-in</h3>
+    <ul class="tools">
+      <li><span class="t">Resolve a swop.id</span> to its wallet &amp; profile</li>
+      <li><span class="t">Search</span> people and creators</li>
+      <li><span class="t">Prediction markets</span> — events, order books, prices, taxonomy</li>
+      <li><span class="t">Browse a store</span> and get a shareable, agent-payable product link</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Manage your Swop — sign in</h3>
+    <ul class="tools">
+      <li><span class="t">Edit your SmartSite</span> — update your name &amp; bio by chat</li>
+      <li><span class="t">Create a product</span> — instantly sellable to people and AI agents</li>
+      <li><span class="t">Check balances &amp; orders</span></li>
+    </ul>
+  </div>
+</div>
+<div class="card">
+  <h3>Move money — sign in + your consent</h3>
+  <ul class="tools">
+    <li><span class="t">Send USDC</span> to any swop.id or address, within your caps</li>
+    <li><span class="t">Pay an x402 link</span> from your wallet</li>
+    <li><span class="t">Get a swap quote</span> or <span class="t">swap</span> on EVM chains</li>
+    <li><span class="t">Open or close a perps position</span> within your margin &amp; leverage caps</li>
+  </ul>
+  <p class="mut" style="font-size:.88rem;margin:.5rem 0 0">Every money action is bounded by the per-transaction and daily limits you set in the Swop app, and is fully revocable. Nothing moves without your delegation.</p>
+</div>
+
+<h2>Add by URL vs the directory plugin</h2>
+<div class="card" style="padding:.6rem .8rem">
+<table>
+  <tr><th>Capability</th><th class="c">Add by URL</th><th class="c">Directory plugin</th></tr>
+  <tr><td>Identity &amp; search</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+  <tr><td>Prediction-market data</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+  <tr><td>Browse stores + product links</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+  <tr><td>Edit SmartSite &amp; create products by chat</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+  <tr><td>Balances &amp; orders (read)</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+  <tr><td>Send / pay / swap / perps <i>executed for you</i></td><td class="c yes">✓ <span class="mut">within caps</span></td><td class="c mut">Approve in the Swop app</td></tr>
+  <tr><td>Found by searching “Swop”</td><td class="c mut">—</td><td class="c yes">✓</td></tr>
+</table>
+</div>
+<p class="mut" style="font-size:.9rem">The directory plugin keeps the on-chain signature in your own hands — it prepares the action and hands off to the Swop app to approve — so it fits app-store policy while still letting an assistant do the busywork.</p>
+
+<footer>
+  <span class="url">https://mcp.swopme.co/mcp</span><br><br>
+  <a href="https://www.swopme.co">swopme.co</a>·
+  <a href="https://www.swopme.co/privacy.html">Privacy</a>·
+  <a href="https://www.swopme.co/terms.html">Terms</a>
+</footer>
+</div></body></html>
