@@ -82,6 +82,58 @@ function slimMarket(m: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+
+// ---------- product shape ----------
+// The backend (marketplace.createProduct -> buildTemplatePayload) accepts far
+// more than these tools used to expose. Two traps encoded here:
+//
+//  1. validateTemplatePayload REQUIRES name, description AND image. They were
+//     optional in this schema, so a create without them 400'd with a message
+//     the assistant had no way to anticipate.
+//  2. `productType` is the MARKETPLACE type (physical | digital |
+//     in_person_checkout) and is mapped to an nftType via
+//     PRODUCT_TYPE_TO_NFT_TYPE. This tool used to advertise nftType values
+//     ("collectible", "phygital", …) in the productType field; normalizeProductType
+//     does not recognise those, so it fell back and quietly created a
+//     COLLECTIBLE when the caller asked for a phygital. Both fields are exposed
+//     now and nftType wins when given, matching the backend's precedence.
+const PRODUCT_TYPES = ['physical', 'digital', 'in_person_checkout'] as const;
+const NFT_TYPES = ['phygital', 'menu', 'collectible', 'subscription', 'membership', 'coupon'] as const;
+
+const variantSchema = z
+  .array(
+    z.object({
+      name: z.string().min(1).describe('Variant group, e.g. "Color" or "Size"'),
+      options: z.array(z.string().min(1)).describe('Choices, e.g. ["Black","White"]'),
+    }),
+  )
+  .describe('Buyer-selectable options. Replaces the existing set when given.');
+
+// Only send `fulfillment` when the caller actually set one of its fields:
+// buildTemplatePayload treats the presence of the object as authoritative, so an
+// always-sent {} would reset shippingRequired/shippingCost to false/0 on update.
+const buildFulfillment = (a: {
+  requiresShipping?: boolean;
+  shippingCost?: number;
+  digitalDeliveryNote?: string;
+}) => {
+  const f: Record<string, unknown> = {};
+  if (a.requiresShipping !== undefined) f.requiresShipping = a.requiresShipping;
+  if (a.shippingCost !== undefined) f.shippingCost = a.shippingCost;
+  if (a.digitalDeliveryNote !== undefined) f.digitalDeliveryNote = a.digitalDeliveryNote;
+  return Object.keys(f).length ? f : undefined;
+};
+
+// image + extraImages -> the `images` array the payload reader walks. It dedupes
+// and treats the first entry as primary.
+const buildImages = (image?: string, extraImages?: string[]) => {
+  const urls = [image, ...(extraImages ?? [])].filter(Boolean) as string[];
+  return urls.length ? urls.map((url) => ({ url })) : undefined;
+};
+
+const omitUndefined = (o: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+
 export function buildServer(authHeader?: string): McpServer {
   const server = new McpServer({ name: 'swop', version: '0.1.0' });
 
@@ -411,27 +463,61 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Create a product',
       description:
-        'Create a sellable product on the linked account\'s SmartSite. It becomes instantly purchasable by humans at the SmartSite and by AI agents over x402. Confirm name and price with the user before creating.',
+        "Create a sellable product on the linked account's SmartSite. It becomes instantly purchasable by humans at the SmartSite and by AI agents over x402. name, description and image are all REQUIRED by the backend. Confirm name and price with the user before creating.",
       inputSchema: {
         name: z.string().min(1).max(120).describe('Product name'),
-        description: z.string().max(2000).optional().describe('Product description'),
+        description: z.string().min(1).max(2000).describe('Product description (required)'),
         priceUsd: z.number().positive().describe('Price in USD (settles in USDC)'),
-        image: z.string().url().optional().describe('Product image URL'),
-        productType: z.string().optional().describe('collectible (default), phygital, membership, coupon'),
-        mintLimit: z.number().int().positive().optional().describe('Inventory limit, default 1'),
+        image: z.string().url().describe('Primary product image URL (required)'),
+        extraImages: z
+          .array(z.string().url())
+          .max(9)
+          .optional()
+          .describe('Additional image URLs, shown after the primary one'),
+        productType: z
+          .enum(PRODUCT_TYPES)
+          .optional()
+          .describe('physical (ships), digital (default), or in_person_checkout'),
+        nftType: z
+          .enum(NFT_TYPES)
+          .optional()
+          .describe('Fine-grained type; overrides productType. phygital/menu are physical, the rest digital'),
+        mintLimit: z.number().int().positive().optional().describe('Inventory available, default 1'),
+        keywords: z.array(z.string()).max(20).optional().describe('Search keywords'),
+        variants: variantSchema.optional(),
+        requiresShipping: z.boolean().optional().describe('Physical goods: collect a shipping address'),
+        shippingCost: z.number().min(0).optional().describe('Flat shipping cost in USD'),
+        digitalDeliveryNote: z
+          .string()
+          .max(500)
+          .optional()
+          .describe('Digital goods: what the buyer receives after purchase'),
+        royaltyPercentage: z.number().min(0).max(100).optional().describe('Resale royalty percent'),
+        royaltyRecipient: z.string().optional().describe('Wallet receiving royalties'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
-    ({ name, description, priceUsd, image, productType, mintLimit }) =>
+    (a) =>
       run(() =>
-        authedCall('POST', '/api/v5/mcp/products', {
-          name,
-          description,
-          price: priceUsd,
-          image,
-          productType: productType ?? 'collectible',
-          mintLimit: mintLimit ?? 1,
-        }),
+        authedCall(
+          'POST',
+          '/api/v5/mcp/products',
+          omitUndefined({
+            name: a.name,
+            description: a.description,
+            price: a.priceUsd,
+            image: a.image,
+            images: buildImages(a.image, a.extraImages),
+            productType: a.productType ?? 'digital',
+            nftType: a.nftType,
+            mintLimit: a.mintLimit ?? 1,
+            keywords: a.keywords,
+            variants: a.variants,
+            fulfillment: buildFulfillment(a),
+            royaltyPercentage: a.royaltyPercentage,
+            royaltyRecipient: a.royaltyRecipient,
+          }),
+        ),
       ),
   );
 
@@ -466,31 +552,61 @@ export function buildServer(authHeader?: string): McpServer {
   server.registerTool(
     'swop_update_product',
     {
-      title: 'Edit or unlist a product',
+      title: 'Update or unlist a product',
       description:
-        "Edit one of the linked account's products, or unlist it. Pass its productId (from swop_list_my_products) plus only the fields to change: name, description, priceUsd, image, mintLimit. To unlist/remove it from sale, set status to 'archived'. Confirm price and name changes with the user first.",
+        "Edit one of the linked account's products, or unlist it. Pass its productId (from swop_list_my_products) plus ONLY the fields to change — anything omitted keeps its current value. To unlist it, set status to 'archived'. Confirm price and name changes with the user first.",
       inputSchema: {
         productId: z.string().describe('The product id from swop_list_my_products'),
         name: z.string().max(120).optional().describe('New product name'),
         description: z.string().max(2000).optional().describe('New description'),
         priceUsd: z.number().positive().optional().describe('New price in USD (settles in USDC)'),
-        image: z.string().url().optional().describe('New product image URL'),
-        mintLimit: z.number().int().positive().optional().describe('New inventory limit'),
-        status: z.enum(['active', 'archived']).optional().describe("Set 'archived' to unlist the product"),
+        image: z.string().url().optional().describe('New primary image URL'),
+        extraImages: z
+          .array(z.string().url())
+          .max(9)
+          .optional()
+          .describe('Replaces the additional images. Requires image, since the full list is rewritten'),
+        mintLimit: z.number().int().positive().optional().describe('New inventory available'),
+        keywords: z.array(z.string()).max(20).optional().describe('Replaces the keywords'),
+        variants: variantSchema.optional(),
+        requiresShipping: z.boolean().optional().describe('Collect a shipping address'),
+        shippingCost: z.number().min(0).optional().describe('Flat shipping cost in USD'),
+        digitalDeliveryNote: z.string().max(500).optional().describe('What a buyer receives'),
+        royaltyPercentage: z.number().min(0).max(100).optional().describe('Resale royalty percent'),
+        royaltyRecipient: z.string().optional().describe('Wallet receiving royalties'),
+        status: z.enum(['active', 'archived']).optional().describe("Set 'archived' to unlist"),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     },
-    ({ productId, name, description, priceUsd, image, mintLimit, status }) =>
-      run(() =>
-        authedCall('PATCH', `/api/v5/mcp/products/${encodeURIComponent(productId)}`, {
-          title: name,
-          description,
-          ...(priceUsd !== undefined ? { price: priceUsd } : {}),
-          image,
-          ...(mintLimit !== undefined ? { mintLimit } : {}),
-          status,
-        }),
-      ),
+    (a) =>
+      run(() => {
+        // buildTemplatePayload falls back to the EXISTING row for anything absent,
+        // so omitting a key preserves it. Two keys are presence-sensitive rather
+        // than value-sensitive and must therefore stay absent unless the caller
+        // set them: `variants` (checked with hasOwnProperty) and `fulfillment`
+        // (its presence makes shippingRequired/shippingCost authoritative, so an
+        // always-sent object would silently reset shipping to false/0).
+        const images =
+          a.extraImages !== undefined ? buildImages(a.image, a.extraImages) : undefined;
+        return authedCall(
+          'PATCH',
+          `/api/v5/mcp/products/${a.productId}`,
+          omitUndefined({
+            name: a.name,
+            description: a.description,
+            price: a.priceUsd,
+            image: a.image,
+            images,
+            mintLimit: a.mintLimit,
+            keywords: a.keywords,
+            variants: a.variants,
+            fulfillment: buildFulfillment(a),
+            royaltyPercentage: a.royaltyPercentage,
+            royaltyRecipient: a.royaltyRecipient,
+            status: a.status,
+          }),
+        );
+      }),
   );
 
   server.registerTool(
