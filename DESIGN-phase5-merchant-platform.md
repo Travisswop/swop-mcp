@@ -1,6 +1,6 @@
 # Phase 5 — Merchant platform (API key, embeds, drops, own Bucks)
 
-Status: **roadmap drafted 2026-09-16. NOT started. Two decisions open — see below.**
+Status: **roadmap drafted 2026-09-16. NOT started. Rail decision ANSWERED; lane ownership still open.**
 
 Travis's framing: a verified merchant gets an API key, connects their swop.id,
 embeds Swop checkout on their own site, plugs into the drops map, issues their
@@ -26,9 +26,9 @@ This is an EXPOSURE problem, not a build-from-scratch one.
 So the work is a key-authenticated external API over primitives that already
 run, plus an embed surface, plus the stream back.
 
-## TWO DECISIONS BLOCK THE DESIGN
+## DECISIONS
 
-### 1. Which rail does the key gate? (unanswered)
+### 1. Which rail does the key gate? — ANSWERED 2026-09-16 (Travis)
 
 Travis's standing policy, `CLAUDE.md`, 2026-08-31:
 
@@ -43,10 +43,28 @@ verification. On the CARD rail that is consistent (Stripe Connect already
 requires it). On the CRYPTO rail it contradicts the policy, and would break the
 x402 storefront, where an agent pays any seller's `buyUrl` with no key at all.
 
-The likely resolution: the key authenticates **merchant-side integration**
-("embed checkout on my site, manage my drops"), NOT the right to be paid. Being
-payable stays ungated on crypto. Those are different things and only the first
-needs a key. **Confirm before building.**
+**Travis, 2026-09-16: "The merchant needs verified for the card portion."**
+
+So verification is a **per-capability gate, not a key-issuance gate**. This
+distinction is the whole design and must not be collapsed:
+
+| | verification required? |
+|---|---|
+| Issuing a merchant API key | **NO** |
+| Crypto / x402 checkout + embeds | **NO** — ungated, per the 2026-08-31 policy |
+| Drops, locations, map, own Bucks | **NO** |
+| **Card settlement (Stripe Connect)** | **YES** |
+
+An unverified merchant gets a key and can embed crypto checkout, run drops and
+issue Bucks on day one. The card scope is the only thing their key cannot
+exercise until Stripe Connect onboarding completes.
+
+**Implementation trap to avoid:** gating key ISSUANCE on verification would
+satisfy the sentence above while quietly re-introducing the conflict — an
+unverified merchant could then not embed crypto checkout either, which is
+exactly what the standing policy forbids. Gate the SCOPE, never the key.
+`X402_MERCHANT_IDENTITY_MODE` stays `disabled`; enforce merchant identity only
+inside the Stripe onboarding/payout path, as it already is.
 
 ### 2. Which lane owns this?
 
@@ -71,6 +89,9 @@ drops, map offers. Read-only, so a leaked key cannot move money or change state.
 Exit: a merchant can render their own storefront and drops map from their server.
 
 ### M3 — Embeddable checkout
+Ships the card/crypto split above: the embed offers whichever rails the
+merchant's key is scoped for, and an unverified merchant simply gets a
+crypto-only embed rather than an error or a locked-out page.
 A drop-in checkout for the merchant's own domain. Must carry its own CSP story —
 see `checkout-strict-csp-nonce`, where a nonce + strict-dynamic setup already
 bit once. Buyer picks the rail; card settlement suppresses the on-chain payout
