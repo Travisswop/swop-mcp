@@ -17,6 +17,7 @@ const APP_BASE_URL = process.env.PUBLIC_APP_BASE_URL ?? 'https://www.swopme.app'
 // registered below — a name missing here silently loses its challenge.
 export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_get_my_profile',
+  'swop_list_my_tokens',
   'swop_get_my_balances',
   'swop_get_my_orders',
   'swop_get_my_smartsite',
@@ -380,6 +381,18 @@ export function buildServer(authHeader?: string): McpServer {
       annotations: authedRead,
     },
     () => run(() => authedCall('GET', '/api/v5/mcp/orders')),
+  );
+
+  server.registerTool(
+    'swop_list_my_tokens',
+    {
+      title: 'List my Launchpad tokens',
+      description:
+        "Community tokens and merchant Bucks the linked account has launched on Base, with live balances. Read-only. Merchant Bucks are STORE CREDIT (isStoreCredit: true, 2 decimals) — never add them into a portfolio or cash total. An empty list means nothing has been launched yet, not an error.",
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/launchpad/tokens')),
   );
 
   server.registerTool(
