@@ -32,7 +32,7 @@ since added a Launchpad API, prefer it over building a parallel one.
 Each milestone ships and is useful alone. Do not start the next until the
 previous one's exit criteria hold in production.
 
-### M1 — Read-only (no signing, no money)
+### M1 — Read-only (no signing, no money)  — SHIPPED 2026-09-16
 
 Backend: read Base via RPC and expose the user's Launchpad state.
 MCP tools: `swop_list_my_tokens`, `swop_get_token`, `swop_get_token_holders`,
@@ -46,13 +46,42 @@ Exit criteria:
   app (see the `GET /delegation` guard bug — in-app reads got a flat 401 because
   the route was `verifyMcp`-only; use the `verifyAppOrMcp` pattern).
 
+### The provenance gate (shipped, gates M2-M4)
+
+`verifyLaunchpadToken` (swop-app-backend `6d1b02e5`,
+`GET /api/v5/mcp/launchpad/verify/:address`) answers one question: did THIS
+deployment's factories launch this address?
+
+It exists because an assistant asked to "buy TRAVISCOIN" must turn a name into
+an address, and that step is attacker-reachable — a copycat token carries any
+name and symbol it likes, and a token's own metadata is untrusted input possibly
+chosen to be mistaken for something else. Caps bound the loss; they do not stop
+the wrong contract being bought. The launch event cannot be forged.
+
+`verified: false` means **REFUSE**. Never "unknown, proceed".
+
+**BLOCKING GATE ON M2, M3 AND M4.** Verified against live mainnet: USDC, WETH,
+the burn address and the factory's own address are all refused. But the index
+currently holds ZERO tokens, because nothing has launched on Base mainnet yet —
+so only the REFUSE path is proven. A verifier that refused everything would pass
+the identical test. **No write tier may ship until the ACCEPT path is observed
+against a real launched token.** Until then the gate is, for all we can prove, a
+deny-all, and buy/sell built on it would be untested where it matters.
+
+Ways to clear it, cheapest first:
+1. Launch one token on Base mainnet from the app and confirm `verified: true`.
+2. Deploy the factories to Base Sepolia, add a testnet manifest, and prove both
+   paths there.
+
 ### M2 — Buy / sell launched tokens
 
 Reuses the existing delegated-signing path (`swop_swap` / `swop_send` shape):
 preview -> caps check -> confirm. No new trust model.
 
 Exit criteria:
+- **The provenance gate's accept path is proven first** (see above). Non-negotiable.
 - Bounded by the user's existing caps; refuses above them with a clear reason.
+- Refuses any token the gate does not verify, with the reason shown to the user.
 - A `needs_app_confirmation` path returns a `www.swopme.app/confirm-tx/...` link
   (www, NOT apex — apex deep links open Safari; see `dd92dffa`).
 - Dry-run proven on Base Sepolia before mainnet.
