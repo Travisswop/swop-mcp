@@ -10,6 +10,31 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co';
 // has never served that route, so every link this tool handed out was a 404.
 const APP_BASE_URL = process.env.PUBLIC_APP_BASE_URL ?? 'https://www.swopme.app';
 
+// Tools that call authedCall() and therefore need a linked Swop account. The
+// HTTP layer (src/app.ts) reads this to answer an unauthenticated tools/call
+// with a real 401 + WWW-Authenticate challenge, which is the only signal MCP
+// clients act on to start the OAuth flow. Keep in sync with the authed tools
+// registered below — a name missing here silently loses its challenge.
+export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'swop_get_my_profile',
+  'swop_get_my_balances',
+  'swop_get_my_orders',
+  'swop_get_my_smartsite',
+  'swop_update_my_smartsite',
+  'swop_add_link',
+  'swop_remove_link',
+  'swop_create_product',
+  'swop_feature_product',
+  'swop_list_my_products',
+  'swop_update_product',
+  'swop_get_spending_delegation',
+  'swop_send',
+  'swop_pay_x402_link',
+  'swop_get_swap_quote',
+  'swop_swap',
+  'swop_perps_order',
+]);
+
 type ToolResult = {
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
@@ -243,9 +268,11 @@ export function buildServer(authHeader?: string): McpServer {
   );
 
   // ---------- authed tools (Swop account linking) ----------
-  // Available once the user connects their Swop account (OAuth). Without a
-  // token the tools return a clear link-your-account error, which MCP clients
-  // surface alongside the /.well-known/oauth-protected-resource discovery.
+  // Available once the user connects their Swop account (OAuth). An
+  // unauthenticated call is normally rejected at the HTTP layer with a 401 +
+  // WWW-Authenticate challenge (see AUTHED_TOOL_NAMES and src/app.ts); this
+  // in-tool guard stays as the backstop for transports that reach the server
+  // without that pre-flight, e.g. stdio (src/stdio.ts).
 
   const authedCall = async (method: string, path: string, body?: unknown) => {
     if (!authHeader) {
