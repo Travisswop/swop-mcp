@@ -234,18 +234,41 @@ page that reads `transferred` as "done" will look broken and invite someone to
 "fix" a working escrow. The buyer-facing checkout already learned this —
 0786c096 stopped it polling to `transferred`.
 
-### Partial payment across two rails: probably refuse
+### Partial payment across two rails: CORRECTED — it does not break the model
 
-Pushed back on by the rails lane, and the objection is structural rather than
-about effort. `CheckoutIntent` assumes **one payment with one settlement**, and
-`executeMarketplaceRelease` now selects a single payout leg from
-`order.payment.method`. Two rails in one order does not extend that model, it
-breaks it.
+**This section previously recommended refusing partial payment. That was wrong,
+and the Geo Bucks lane showed why.**
 
-So a $40 basket against a $12 Geo Bucks balance should, in the first cut,
-either be refused or force a single rail — not silently split. Splitting is its
-own milestone with its own settlement design, and pretending otherwise is how
-one of the two legs quietly never pays.
+The objection was that `CheckoutIntent` assumes one payment with one settlement
+and `executeMarketplaceRelease` picks a single payout leg, so bucks plus a
+crypto remainder looked like two payments on one intent.
+
+It is not. The burn is **not a payment leg**. It lives in its own `bucksCredit`
+subdocument, and what it does to the checkout is **re-price it**: `fees` are
+rewritten so `totalDueAmount` is the reduced number, with the pre-credit
+schedule preserved in `bucksCredit.preCreditFees`. The intent then still has
+exactly one `payment` and one `settlement`, describing one transfer for the
+reduced total on whichever rail the buyer picks. Every existing reader — LiFi,
+Solana Pay, the headless path here, the console normalizer — sees a smaller
+checkout and nothing else.
+
+So the settlement machinery gains a leg rather than a second payment. Travis
+also asked for the split explicitly — the buyer pays the remainder with any
+token in their wallet and it converts, with the merchant made whole after swap
+fees and slippage — so refusing it would have contradicted a decision already
+made.
+
+Two things that ARE special, both handled:
+
+- **Card plus bucks is refused outright**, both directions, atomically. That is
+  the one combination where two rails genuinely would collide.
+- **Full coverage**, not partial, is what needed new settlement code:
+  `totalDueAmount` reaches 0, there is no transfer to verify, and a dedicated
+  settle path completes the order the way the card path does.
+
+The release concern above was real and is fixed: a `geo_bucks` leg that moves
+nothing and records the burn, instead of an `else` that would have paid the
+merchant a second time from an escrow wallet the sale never funded.
 
 ### What Geo Bucks are, stated plainly
 
