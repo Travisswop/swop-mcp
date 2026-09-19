@@ -213,6 +213,40 @@ No bucks. Adding one means:
   harder intent model than "pick one", and M5e should decide early whether it
   supports it or refuses it.
 
+### Settlement timing is no longer uniform (as of 491e094a, live)
+
+This changed under this design while it was being written, and an embedded
+checkout inherits it:
+
+```
+in person, any rail          -> releases at once
+website + physical, crypto   -> on-chain payout at buyer confirm
+website + physical, CARD     -> Stripe transfer withheld at capture,
+                                sent at buyer confirm
+website + digital, any rail  -> releases at once (delivered at settlement)
+```
+
+So "settled" must be answered **per rail AND per basket**, not once.
+
+**A card website order sits at `transfer_pending` for possibly days, and that
+is CORRECT, not stuck.** Anything surfacing payment state to a merchant's own
+page that reads `transferred` as "done" will look broken and invite someone to
+"fix" a working escrow. The buyer-facing checkout already learned this —
+0786c096 stopped it polling to `transferred`.
+
+### Partial payment across two rails: probably refuse
+
+Pushed back on by the rails lane, and the objection is structural rather than
+about effort. `CheckoutIntent` assumes **one payment with one settlement**, and
+`executeMarketplaceRelease` now selects a single payout leg from
+`order.payment.method`. Two rails in one order does not extend that model, it
+breaks it.
+
+So a $40 basket against a $12 Geo Bucks balance should, in the first cut,
+either be refused or force a single rail — not silently split. Splitting is its
+own milestone with its own settlement design, and pretending otherwise is how
+one of the two legs quietly never pays.
+
 ### What Geo Bucks are, stated plainly
 
 Store credit issued by a merchant, worth $1 each, 2 decimals, redeemable only
