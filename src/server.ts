@@ -34,6 +34,10 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_get_swap_quote',
   'swop_swap',
   'swop_perps_order',
+  'swop_create_checkout',
+  'swop_list_embed_origins',
+  'swop_register_embed_origin',
+  'swop_remove_embed_origin',
 ]);
 
 type ToolResult = {
@@ -531,6 +535,108 @@ export function buildServer(authHeader?: string): McpServer {
             royaltyRecipient: a.royaltyRecipient,
           }),
         ),
+      ),
+  );
+
+  // --------------------------------------------- selling on your own website
+  //
+  // These let an assistant set commerce UP, not just add products to it.
+  // Deliberately absent: creating a merchant API key. That would let this
+  // revocable OAuth session mint a long-lived server credential that outlives
+  // it and never appears in the connector UI — a real escalation, which
+  // belongs at /dashboard/developer with the secret in front of the user.
+  server.registerTool(
+    'swop_create_checkout',
+    {
+      title: 'Create a checkout for a cart',
+      description:
+        "Create a real Swop checkout for a cart of the linked account's OWN products, so a buyer pays on the seller's own website instead of being sent to Swop. Returns a payment request the buyer pays; the order, receipt and email happen automatically once the payment lands on-chain, with nothing to confirm afterwards. Prices come from the seller's catalogue and must NOT be sent — a price in the request is rejected. Crypto (USDC on Base) today. Show the buyer the products, quantities and total before creating.",
+      inputSchema: {
+        items: z
+          .array(
+            z.object({
+              productId: z.string().describe('Product id from swop_list_my_products'),
+              quantity: z.number().int().positive().max(99).describe('How many'),
+              selectedOptions: z
+                .record(z.string())
+                .optional()
+                .describe('Chosen variants, e.g. { "Color": "Black" }'),
+            }),
+          )
+          .min(1)
+          .max(50)
+          .describe('The cart. Ids only — prices come from the catalogue'),
+        buyerName: z.string().max(120).optional().describe("Buyer's name, if collected"),
+        buyerEmail: z.string().email().optional().describe("Buyer's email, for the receipt"),
+        description: z.string().max(200).optional().describe('What this checkout is for'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    (a) =>
+      run(() =>
+        authedCall(
+          'POST',
+          '/api/v5/mcp/commerce/checkout-intents',
+          omitUndefined({
+            items: a.items,
+            customerInfo:
+              a.buyerName || a.buyerEmail
+                ? omitUndefined({ name: a.buyerName, email: a.buyerEmail })
+                : undefined,
+            description: a.description,
+          }),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'swop_list_embed_origins',
+    {
+      title: 'List sites allowed to frame my checkout',
+      description:
+        "Show which websites may currently display the linked account's Swop checkout in a frame. Use before adding or removing one so the user can see what is already allowed.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/commerce/embed-origins')),
+  );
+
+  server.registerTool(
+    'swop_register_embed_origin',
+    {
+      title: 'Allow a site to frame my checkout',
+      description:
+        "Allow ONE website to display the linked account's Swop checkout inside a frame. This is a security setting: only registered origins can ever frame the checkout, so a leaked API key still cannot put it on someone else's site. Give a bare origin — scheme and host only, https (http allowed for localhost), no wildcards, no path. Confirm the exact origin with the user first.",
+      inputSchema: {
+        origin: z.string().min(1).describe('Bare origin, e.g. https://acme.com'),
+        label: z.string().max(80).optional().describe('A note to recognise it later'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    (a) =>
+      run(() =>
+        authedCall(
+          'POST',
+          '/api/v5/mcp/commerce/embed-origins',
+          omitUndefined({ origin: a.origin, label: a.label }),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'swop_remove_embed_origin',
+    {
+      title: 'Stop a site framing my checkout',
+      description:
+        "Remove a website from the list allowed to frame the linked account's checkout. Takes an id from swop_list_embed_origins. Afterwards that site can no longer display the checkout.",
+      inputSchema: {
+        id: z.string().min(1).describe('Origin id from swop_list_embed_origins'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    (a) =>
+      run(() =>
+        authedCall('DELETE', `/api/v5/mcp/commerce/embed-origins/${encodeURIComponent(a.id)}`),
       ),
   );
 
