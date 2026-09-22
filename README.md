@@ -44,3 +44,20 @@ claude mcp add swop --transport http http://localhost:8788/mcp
 Stateless — any host works (Vercel functions, or a small box alongside the
 sidecar). Suggested prod URL: `mcp.swopme.app` (never swop.tech). Give it its
 own upstream rate-limit identity before public listing.
+
+## Where this fits
+
+The AI-assistant edge of the platform. Exposes Swop to anything that speaks MCP,
+reaching the same API every first-party client uses.
+
+```mermaid
+graph LR
+    ai["Claude / ChatGPT / Cursor"] --> mcp["<b>swop-mcp</b>"]
+    mcp --> api["swop-app-backend<br/>apps.apiswop.co"]
+```
+
+The identity rule that matters here: **crypto payment is never KYC-gated.** An
+agent can pay a seller in USDC with no verification step. Verification gates the
+card scope only — never ask a crypto path for identity.
+
+For the cross-repo map, see **[swop-app-backend/docs/ECOSYSTEM.md](https://github.com/Travisswop/swop-app-backend/blob/main/docs/ECOSYSTEM.md)**.
