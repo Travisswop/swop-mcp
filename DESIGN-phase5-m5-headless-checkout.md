@@ -181,9 +181,15 @@ servers or the merchant's. A raw-PAN API would put Swop AND every integrating
 merchant into the heaviest PCI category — so if a merchant asks for one the
 answer is no, and the reason is their exposure, not only ours.
 
-Card stays entitlement-gated: resolveMerchantPaymentRoute is checked per
-request, so an unverified merchant's embedded checkout offers crypto and simply
-shows no card option.
+Card stays entitlement-gated, but by the RIGHT symbol: the card OFFER is
+decided by `readMerchantCardEntitlement`
+(services/identity/merchantCardEntitlement.js), NOT by
+`resolveMerchantPaymentRoute`. The latter lives in identityServiceClient and
+answers a different question at a different moment — "where does the money
+actually go" at payment time, plus key-scope resolution — and it is a network
+call to the identity service that does not belong on a creation path. An
+implementer following the wrong one lands in the wrong file and adds a
+round-trip nobody wanted.
 
 ### Geo Bucks (M5e) — not a rail at all yet
 
@@ -279,6 +285,81 @@ at stores that merchant registers. `isStoreCredit: true` on the token row.
 The mobile wallet already excludes them and anything new must too. A balance of
 40 Geo Bucks is not $40 of assets — it is $40 of credit at one merchant, worth
 nothing anywhere else.
+
+## Settlement read from the rails lane
+
+Seven findings, most of which post-date the rest of this document.
+
+### `rails` has a second input, unrelated to Stripe
+
+Since 2026-09-19 the card offer is also refused for a basket whose **royalty
+cannot be delivered** — a royalty recipient with no Swop account has no reward
+wallet to credit, so card is withheld and the sale stays crypto. A headless
+merchant selling a royalty-bearing SKU will get `rails: ["crypto"]` for a
+reason that has nothing to do with their own verification, and will file a bug
+unless the response says why. **The API should return a reason alongside
+`rails`, not just the list.**
+
+### `checkout.paid` does NOT mean the merchant has been paid
+
+The most consequential gap in M5b, and it did not exist when this document was
+written. For a website physical order the transfer is withheld at capture and
+sent at buyer confirm, possibly days later. A merchant whose backend treats
+`checkout.paid` as money-in-hand — ships, reconciles, recognises revenue — is
+wrong for the entire escrow window.
+
+**M5b needs two events**, and the docs must say which means what:
+`checkout.paid` (the buyer is finished) and `checkout.settled` /
+`payout.released` (the money has moved).
+
+### Polling must express three separate truths
+
+`GET /checkout-intents/:id` now has to say: the **buyer** is finished, the
+**order** is real and shippable, and the **merchant** is not yet paid. One
+`status` field cannot carry that, and the failure is a deadlock rather than a
+cosmetic bug:
+
+- reads `paid` → the merchant ships and wonders where the money is
+- reads `pending` → the merchant does not ship, so the buyer never confirms
+  delivery, so the escrow never releases
+
+Design against that explicitly rather than discovering it.
+
+### Refunds split by whether the transfer went out
+
+Held: nothing was ever sent, so there is nothing to reverse — the refund comes
+off the charge. Released: the transfer is out and needs reversing. This is not
+theoretical; 491e094a fixed a case where the reversal paths correctly no-opped
+on `providerTransferRef` but the escrow release then threw forever until a
+terminally-reversed payment settled the order `refunded`. First thing to
+specify when refunds get their milestone.
+
+### The settlement table needs a fourth row
+
+Geo Bucks landed after it was written. A website physical order paid in Bucks
+**holds the order, not the money** — the burn cannot be deferred, because the
+merchant's signature is bound to `msg.sender` and a deferred burn is a promise
+from a wallet that may be empty by the time they have shipped. The remedy
+inside the window is the contract's own `refund(invoiceId, amount)`.
+
+```
+in person, any rail          -> releases at once
+website + physical, crypto   -> on-chain payout at buyer confirm
+website + physical, CARD     -> Stripe transfer withheld, sent at buyer confirm
+website + physical, BUCKS    -> burn happens now; the ORDER holds, refund via
+                                the contract's refund(invoiceId, amount)
+website + digital, any rail  -> releases at once
+```
+
+### Status of what this is built on
+
+`MERCHANT_EMBED_SECRET` is still absent from `swop-backend-env`, so the shipped
+M3b/M3c embed path is **inert in production** — the verifier fails closed and
+no merchant can frame a checkout. Config, not code, but M5 is being designed on
+top of something not currently live.
+
+Card escrow is live but **unproven against real Stripe** — nothing has held a
+transfer in production yet.
 
 ## Open questions for review
 
