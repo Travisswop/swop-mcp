@@ -36,6 +36,10 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_perps_order',
   'swop_create_checkout',
   'swop_get_checkout',
+  'swop_list_webhooks',
+  'swop_register_webhook',
+  'swop_test_webhook',
+  'swop_remove_webhook',
   'swop_list_embed_origins',
   'swop_register_embed_origin',
   'swop_remove_embed_origin',
@@ -627,6 +631,69 @@ export function buildServer(authHeader?: string): McpServer {
       run(() =>
         authedCall('GET', `/api/v5/mcp/commerce/checkout-intents/${encodeURIComponent(a.intentId)}`),
       ),
+  );
+
+  server.registerTool(
+    'swop_list_webhooks',
+    {
+      title: 'List my webhooks',
+      description:
+        "Show the webhook endpoints Swop notifies when the linked account gets paid, and the events available. Two events: checkout.paid (the buyer's money arrived and an order exists) and payout.released (Swop released the seller's money — for a card sale that can be days later). Use before adding or removing one.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/commerce/webhooks')),
+  );
+
+  server.registerTool(
+    'swop_register_webhook',
+    {
+      title: 'Add a webhook',
+      description:
+        "Register an https URL that Swop will POST a signed JSON event to when the linked account gets paid (checkout.paid) and paid out (payout.released). Returns a signing secret ONCE — tell the user to store it now; it cannot be retrieved again. Deliveries carry a Swop-Signature header: t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<raw body>\" with the secret>; failed deliveries retry for about 15 hours. Confirm the exact URL with the user first.",
+      inputSchema: {
+        url: z.string().url().max(2000).describe('https URL to POST events to (http allowed for localhost only)'),
+        events: z
+          .array(z.enum(['checkout.paid', 'payout.released']))
+          .min(1)
+          .optional()
+          .describe('Which events to send. Default: both'),
+        label: z.string().max(80).optional().describe('A name for this endpoint'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    (a) =>
+      run(() =>
+        authedCall('POST', '/api/v5/mcp/commerce/webhooks', omitUndefined({ url: a.url, events: a.events, label: a.label })),
+      ),
+  );
+
+  server.registerTool(
+    'swop_test_webhook',
+    {
+      title: 'Send a test event to a webhook',
+      description:
+        "POST a signed 'ping' event to one of the linked account's webhooks right now and report the HTTP status the endpoint returned. Use to confirm an integration before relying on it.",
+      inputSchema: {
+        id: z.string().describe('Webhook id from swop_list_webhooks'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    (a) => run(() => authedCall('POST', `/api/v5/mcp/commerce/webhooks/${encodeURIComponent(a.id)}/test`)),
+  );
+
+  server.registerTool(
+    'swop_remove_webhook',
+    {
+      title: 'Remove a webhook',
+      description:
+        "Stop sending events to one of the linked account's webhook URLs. Pending deliveries to it are dropped. Confirm with the user first.",
+      inputSchema: {
+        id: z.string().describe('Webhook id from swop_list_webhooks'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    (a) => run(() => authedCall('DELETE', `/api/v5/mcp/commerce/webhooks/${encodeURIComponent(a.id)}`)),
   );
 
   server.registerTool(

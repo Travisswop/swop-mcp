@@ -23,8 +23,11 @@ Live in production, proven on swopme.co/shop.html against the real catalogue:
 - **"Paid" on the page** — the merchant's site polls
   `GET /merchant/checkout-intents/:id` (`commerce.read`) plus the public
   `card-payment` read; swopme.co does this from a small server function.
-- **M5b webhooks** — still not built. Polling covers a single page; a merchant
-  system needs `checkout.paid` and the separate settled/payout event (§ below).
+- **M5b webhooks** — built (2026-09-24): `checkout.paid` and `payout.released`,
+  a once-a-minute notifier over order high-water marks (no hooks in the
+  settlement paths), signed `Swop-Signature: t=..,v1=hmac-sha256("t.body")`,
+  backoff 1m/5m/30m/2h/12h, paused after 25 straight failures. Managed from
+  the Developer page and over MCP; never with a merchant key.
 - **M5e Geo Bucks** — unchanged from the analysis below.
 
 ## What a merchant wants
