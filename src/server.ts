@@ -35,6 +35,7 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_swap',
   'swop_perps_order',
   'swop_create_checkout',
+  'swop_get_checkout',
   'swop_list_embed_origins',
   'swop_register_embed_origin',
   'swop_remove_embed_origin',
@@ -608,6 +609,23 @@ export function buildServer(authHeader?: string): McpServer {
             description: a.description,
           }),
         ),
+      ),
+  );
+
+  server.registerTool(
+    'swop_get_checkout',
+    {
+      title: 'Check a checkout',
+      description:
+        "Read back a checkout created with swop_create_checkout: its status (active, pending_payment, paid, settled, expired, cancelled), the payment request if one is published, and the line items. Poll this after the buyer has been shown the payment to learn when it lands — paid means the buyer's money arrived; settled means the seller has been paid out. Only the linked account's own checkouts are visible.",
+      inputSchema: {
+        intentId: z.string().regex(/^co_[A-Za-z0-9_-]{4,40}$/).describe('The intentId returned by swop_create_checkout'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    (a) =>
+      run(() =>
+        authedCall('GET', `/api/v5/mcp/commerce/checkout-intents/${encodeURIComponent(a.intentId)}`),
       ),
   );
 
