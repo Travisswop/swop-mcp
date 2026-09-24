@@ -3,6 +3,30 @@
 **Status:** design, not built. Written for review before implementation, because
 this is the first merchant-facing API that can move money.
 
+## Status — 2026-09-24
+
+Live in production, proven on swopme.co/shop.html against the real catalogue:
+
+- **M5a crypto** — `POST /api/v5/merchant/checkout-intents` (scope `commerce.checkout`)
+  returns a Solana Pay request; the Helius webhook settles it. Two bugs found the
+  first time the accept path ran, both fixed: the merchant router parsed no body
+  (keys were issued with no scopes), and the intent schema refused its own null
+  enum defaults (no intent could ever be created — the app path too).
+- **Shipping** — templates' `shippingRequired`/`shippingCost` are now charged on
+  every catalogue intent path and split back out on the order; physical carts
+  require name, email and a deliverable address (`400 SHIPPING_DETAILS_REQUIRED`).
+- **M5c card** — `paymentRail: 'buyer_choice'` offers card under the SmartSite
+  cart's own rule (`marketplaceCardOffer`). When offered, `paymentRequest` is null
+  and the buyer picks a rail through the existing public capability URLs
+  (`card-payment-intents`, `select-crypto`, `card-payment/release`). The
+  merchant's page mounts Stripe's Payment Element itself. No change to the rail.
+- **"Paid" on the page** — the merchant's site polls
+  `GET /merchant/checkout-intents/:id` (`commerce.read`) plus the public
+  `card-payment` read; swopme.co does this from a small server function.
+- **M5b webhooks** — still not built. Polling covers a single page; a merchant
+  system needs `checkout.paid` and the separate settled/payout event (§ below).
+- **M5e Geo Bucks** — unchanged from the analysis below.
+
 ## What a merchant wants
 
 Today a merchant embedding Swop gets one of two things:

@@ -550,7 +550,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Create a checkout for a cart',
       description:
-        "Create a real Swop checkout for a cart of the linked account's OWN products, so a buyer pays on the seller's own website instead of being sent to Swop. Returns a payment request the buyer pays; the order, receipt and email happen automatically once the payment lands on-chain, with nothing to confirm afterwards. Prices come from the seller's catalogue and must NOT be sent — a price in the request is rejected. Crypto (USDC on Base) today. Show the buyer the products, quantities and total before creating.",
+        "Create a real Swop checkout for a cart of the linked account's OWN products, so a buyer pays on the seller's own website instead of being sent to Swop. Prices come from the seller's catalogue and must NOT be sent — a price in the request is rejected. Shipping is charged automatically for physical products, and for those the buyer's name, email and delivery address are REQUIRED (the call is refused otherwise, naming what is missing). Rails: USDC on Solana always; set offerCard when the seller is card-enabled and every item is a physical good — then the response has cardOffered: true and paymentRequest is null until the buyer picks a rail on the seller's page via the public URLs POST /api/v5/checkout-intents/{intentId}/card-payment-intents (Stripe client secret for a Payment Element) or POST .../select-crypto (publishes the Solana Pay request). Otherwise paymentRequest is returned at once (a solana: URL the buyer's wallet opens, also fine as a QR code). Settlement is automatic once the payment lands — nothing to confirm; poll swop_get_checkout for status. Show the buyer the products, quantities and total before creating.",
       inputSchema: {
         items: z
           .array(
@@ -566,8 +566,24 @@ export function buildServer(authHeader?: string): McpServer {
           .min(1)
           .max(50)
           .describe('The cart. Ids only — prices come from the catalogue'),
-        buyerName: z.string().max(120).optional().describe("Buyer's name, if collected"),
-        buyerEmail: z.string().email().optional().describe("Buyer's email, for the receipt"),
+        buyerName: z.string().max(120).optional().describe("Buyer's name (required for physical items)"),
+        buyerEmail: z.string().email().optional().describe("Buyer's email, for the receipt (required for physical items)"),
+        buyerPhone: z.string().max(60).optional().describe("Buyer's phone, for the courier"),
+        shippingAddress: z
+          .object({
+            line1: z.string().max(180),
+            line2: z.string().max(180).optional(),
+            city: z.string().max(120),
+            state: z.string().max(80).optional(),
+            postalCode: z.string().max(40),
+            country: z.string().max(80),
+          })
+          .optional()
+          .describe('Delivery address. Required when any item is a physical product'),
+        offerCard: z
+          .boolean()
+          .optional()
+          .describe('Offer card as well as USDC. Only takes effect when the seller is card-enabled and every item is physical; otherwise the checkout is USDC-only'),
         description: z.string().max(200).optional().describe('What this checkout is for'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
@@ -579,9 +595,15 @@ export function buildServer(authHeader?: string): McpServer {
           '/api/v5/mcp/commerce/checkout-intents',
           omitUndefined({
             items: a.items,
+            paymentRail: a.offerCard ? 'buyer_choice' : undefined,
             customerInfo:
-              a.buyerName || a.buyerEmail
-                ? omitUndefined({ name: a.buyerName, email: a.buyerEmail })
+              a.buyerName || a.buyerEmail || a.buyerPhone || a.shippingAddress
+                ? omitUndefined({
+                    name: a.buyerName,
+                    email: a.buyerEmail,
+                    phone: a.buyerPhone,
+                    address: a.shippingAddress,
+                  })
                 : undefined,
             description: a.description,
           }),
