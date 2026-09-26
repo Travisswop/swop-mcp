@@ -19,6 +19,17 @@ Auth for public tools only).
 ## Grok
 grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 
+## If something goes wrong
+
+- **Asked to sign in?** Complete the Swop account-linking prompt. Never paste
+  passwords, private keys, or recovery phrases into chat.
+- **A tool is missing?** Start a fresh conversation with the Swop connector
+  enabled so your assistant can load the current tool list.
+- **A money action timed out or lost its connection?** Its outcome may be
+  unknown. Check your Swop activity and the relevant order or checkout status
+  before repeating the action. If you cannot confirm the outcome, stop and ask
+  for help instead of submitting it again.
+
 ## What your AI can do with Swop
 - Look up any swop.id and its wallet addresses
 - Live prediction-market odds, orderbooks, and price history
