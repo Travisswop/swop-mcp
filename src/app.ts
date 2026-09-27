@@ -10,7 +10,9 @@ import { mountShare } from './share.js';
 export function buildApp(): express.Express {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '1mb' }));
+  // 4mb (just under Vercel's 4.5 MB function body cap) so swop_create_feed_post
+  // can carry an inline base64 image.
+  app.use(express.json({ limit: '4mb' }));
 
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true, name: 'swop-mcp' });

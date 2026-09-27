@@ -21,6 +21,13 @@ Predictions (polymarket.apiswop.co, all public):
   preferred over cached outcomePrices), `swop_get_price_history`,
   `swop_get_taxonomy`, `swop_get_taxonomy_stats`, `swop_check_predictions_access` (geoblock).
 
+Feed (authed, scope `smartsite.write`, backend `/api/v5/mcp/feed/posts`):
+- `swop_create_feed_post` — public post as the linked SmartSite: caption + up to 4
+  images (https URL, data URI or base64; re-hosted on Swop's Cloudinary with the
+  composer's unsigned `swopapp` preset). Two-step: preview returns a sealed
+  `previewId`; confirm must resend the identical content. Identical re-posts within
+  24h return the existing post.
+
 ## Run
 
 ```
