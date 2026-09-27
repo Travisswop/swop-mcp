@@ -188,7 +188,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Search prediction markets',
       description:
-        'Search Swop prediction markets (Polymarket-backed) by topic. Supports free-text search over question/event/outcomes/tags, plus live-game and sport filters. Returns market question, slug, outcomes with current prices, CLOB token ids, liquidity, and end date. Prices are 0..1 probabilities per outcome.',
+        'Search Swop prediction markets (Polymarket-backed) by topic. Supports free-text search over question/event/outcomes/tags, plus live-game and sport filters. Returns market question, slug, outcomes with cached outcomePrices, CLOB token ids, liquidity, and end date. Prices are 0..1 probabilities per outcome and can lag the live orderbook. When freshness matters, pass clobTokenIds to swop_get_prices as tokenIds for live book-derived prices.',
       inputSchema: {
         query: z.string().optional().describe('Free-text topic search, e.g. "bitcoin", "chiefs", "fed rates"'),
         tag_id: z.string().optional().describe('Sport/category tag id from swop_get_taxonomy'),
