@@ -19,6 +19,12 @@ Auth for public tools only).
 ## Grok
 grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 
+## Missing a tool?
+
+AI assistants can cache Swop's tool list. If a tool is missing after an update,
+start a fresh chat or session with Swop enabled. Keep your existing Swop
+connector; you do not need to disconnect and reconnect it to try this step.
+
 ## What your AI can do with Swop
 - Look up any swop.id and its wallet addresses
 - Live prediction-market odds, orderbooks, and price history
