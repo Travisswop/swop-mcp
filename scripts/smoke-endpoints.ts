@@ -65,6 +65,11 @@ async function main() {
     ]) {
       const meta = await (await fetch(`${base}${path}`)).json();
       assert.equal(meta.resource, `${expectedOrigin}${resource}`, path);
+      if (resource === '/mcp/commerce') {
+        assert.deepEqual(meta.scopes_supported, ['profile.read', 'wallet.read', 'smartsite.write', 'commerce.write'], path);
+      } else {
+        assert.equal(meta.scopes_supported, undefined, `${path} must stay unchanged`);
+      }
     }
 
     const challenge = await rpc(`${base}/mcp/commerce`, {

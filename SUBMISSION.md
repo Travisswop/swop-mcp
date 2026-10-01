@@ -11,7 +11,9 @@ Both endpoints: public tools need no auth; account tools use OAuth 2.1 account
 linking (apps.apiswop.co/oauth, QR approval in the Swop app or email magic
 link). Auth mode for listings: "Required when the server asks." Each endpoint
 publishes its own RFC 9728 metadata (`/.well-known/oauth-protected-resource/mcp/commerce`
-for the listing URL).
+for the listing URL). The commerce document advertises only
+`profile.read wallet.read smartsite.write commerce.write` in `scopes_supported`,
+so a commerce link never asks for send/trade/x402/perps consent.
 
 Commerce is real: every Swop seller's products are purchasable by agents in
 mainnet USDC over x402 (digital = instant settlement to the seller; physical =
@@ -71,8 +73,11 @@ tools; public tools need none.
    (MCP connectivity details + directory metadata + country availability).
    Submit the /mcp/commerce URL.
 3. **MCP Registry** (registry.modelcontextprotocol.io) — published as
-   `io.github.Travisswop/swop` from `server.json`. v0.2.0 lists the commerce
-   endpoint as the first remote and the full endpoint second. Publish with
+   `io.github.Travisswop/swop` from `server.json`. **Decided (Travis, Oct 1):
+   the registry lists the commerce endpoint only.** v0.2.1 has a single remote,
+   https://mcp.swopme.co/mcp/commerce, so every aggregator that ingests the
+   registry (PulseMCP, Glama) picks up the right URL. /mcp keeps working for
+   existing users; it is just not advertised. Publish with
    `mcp-publisher login github` then `mcp-publisher publish`.
 4. **Smithery, Glama, PulseMCP, mcp.so** — use the copy above and the
    /mcp/commerce URL.
@@ -85,6 +90,7 @@ tools; public tools need none.
 - [x] DNS: `mcp.swopme.co` CNAME → Vercel (live).
 - [x] Backend identity routes live (`swop_lookup_identity` returns data).
 - [x] Repo public at github.com/Travisswop/swop-mcp.
-- [x] Registry namespace `io.github.Travisswop/swop` published.
+- [x] Registry namespace `io.github.Travisswop/swop` published (v0.2.1, commerce remote only).
+- [x] `glama.json` at the repo root (maintainers: Travisswop) for the Glama repo listing claim.
 - [ ] Claude Team/Enterprise org for the Anthropic directory.
 - [ ] Screenshots (prompts above) once connected in Claude.

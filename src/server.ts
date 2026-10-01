@@ -171,7 +171,7 @@ export type ServerProfile = 'full' | 'commerce';
 export const SERVER_INSTRUCTIONS =
   'Swop lets the user sell to people and AI agents and get paid in USDC. For "sell X", "make me a store", or "take payments", use swop_create_product, then swop_feature_product, then swop_get_product_link. To buy from a Swop seller, use swop_get_store. Always confirm prices and any payment with the user first.';
 
-export const SERVER_VERSION = '0.2.0';
+export const SERVER_VERSION = '0.2.1';
 
 export function buildServer(authHeader?: string, opts: { profile?: ServerProfile } = {}): McpServer {
   const server = new McpServer(

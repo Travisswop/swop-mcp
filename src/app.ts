@@ -48,10 +48,24 @@ export function buildApp(): express.Express {
   // token works on both endpoints.
   const publicBase = () => process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co';
   const ENDPOINT_PATHS: Record<ServerProfile, string> = { full: '/mcp', commerce: '/mcp/commerce' };
+  // The commerce endpoint advertises ONLY the scopes its tools' backend routes
+  // check (swop-app-backend src/routes/v5/mcpApi.routes.js verifyMcp(...)):
+  //   profile.read    GET /me                     swop_get_my_profile
+  //   wallet.read     GET /balances, /orders,     swop_get_my_balances, swop_get_my_orders,
+  //                   /launchpad/tokens           swop_list_my_tokens
+  //   smartsite.write /smartsite*, /feed/posts*   SmartSite, links, feed posts
+  //   commerce.write  /products*, /commerce/*,    products, checkout, webhooks, embed
+  //                   /smartsite/feature-product  origins, feature product
+  // Clients read the PRM before the AS metadata, so this keeps wallet.send /
+  // wallet.trade / payments.x402 / perps.trade off the consent screen of a
+  // commerce link. The AS metadata (served by the backend) still lists every
+  // scope, and /mcp keeps its document unchanged.
+  const COMMERCE_SCOPES = ['profile.read', 'wallet.read', 'smartsite.write', 'commerce.write'];
   const protectedResourceMetadata = (profile: ServerProfile = 'full') => ({
     resource: `${publicBase()}${ENDPOINT_PATHS[profile]}`,
     authorization_servers: [process.env.SWOP_API_BASE ?? 'https://apps.apiswop.co'],
     bearer_methods_supported: ['header'],
+    ...(profile === 'commerce' ? { scopes_supported: COMMERCE_SCOPES } : {}),
   });
   const metadataUrl = (profile: ServerProfile) =>
     `${publicBase()}/.well-known/oauth-protected-resource${ENDPOINT_PATHS[profile]}`;
