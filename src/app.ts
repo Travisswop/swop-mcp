@@ -3,7 +3,7 @@
 // pair per request so any replica/invocation can serve any call.
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { buildServer, AUTHED_TOOL_NAMES } from './server.js';
+import { buildServer, AUTHED_TOOL_NAMES, COMMERCE_EXCLUDED_TOOL_NAMES, type ServerProfile } from './server.js';
 import { mountStore } from './store.js';
 import { mountShare } from './share.js';
 
@@ -40,28 +40,43 @@ export function buildApp(): express.Express {
   // /.well-known/oauth-protected-resource/mcp (RFC 9728 s3.1). Only the root
   // form existed, so every spec-conformant lookup 404'd and the client
   // concluded the server was unauthenticated.
-  const protectedResourceMetadata = () => ({
-    resource: `${process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co'}/mcp`,
+  //
+  // The commerce-only endpoint (/mcp/commerce) is its own protected resource,
+  // so it gets its own path-derived document (…/oauth-protected-resource/mcp/commerce)
+  // naming itself as `resource`. Same authorization server: the backend issues
+  // aud "mcp" tokens and does not bind them to the `resource` parameter, so one
+  // token works on both endpoints.
+  const publicBase = () => process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co';
+  const ENDPOINT_PATHS: Record<ServerProfile, string> = { full: '/mcp', commerce: '/mcp/commerce' };
+  const protectedResourceMetadata = (profile: ServerProfile = 'full') => ({
+    resource: `${publicBase()}${ENDPOINT_PATHS[profile]}`,
     authorization_servers: [process.env.SWOP_API_BASE ?? 'https://apps.apiswop.co'],
     bearer_methods_supported: ['header'],
   });
-  const serveProtectedResourceMetadata = (_req: express.Request, res: express.Response) => {
-    res.json(protectedResourceMetadata());
-  };
-  app.get('/.well-known/oauth-protected-resource', serveProtectedResourceMetadata);
-  app.get('/.well-known/oauth-protected-resource/mcp', serveProtectedResourceMetadata);
+  const metadataUrl = (profile: ServerProfile) =>
+    `${publicBase()}/.well-known/oauth-protected-resource${ENDPOINT_PATHS[profile]}`;
+  const serveProtectedResourceMetadata =
+    (profile: ServerProfile) => (_req: express.Request, res: express.Response) => {
+      res.json(protectedResourceMetadata(profile));
+    };
+  app.get('/.well-known/oauth-protected-resource', serveProtectedResourceMetadata('full'));
+  app.get('/.well-known/oauth-protected-resource/mcp', serveProtectedResourceMetadata('full'));
+  app.get('/.well-known/oauth-protected-resource/mcp/commerce', serveProtectedResourceMetadata('commerce'));
 
   // Does this JSON-RPC payload invoke a tool that needs a linked Swop account?
   // Batches are answered with a challenge if ANY member needs one — the client
   // re-sends the whole batch after signing in.
-  const needsAuth = (body: unknown): boolean => {
+  const needsAuth = (body: unknown, profile: ServerProfile): boolean => {
     const calls = Array.isArray(body) ? body : [body];
     return calls.some((call) => {
       if (!call || typeof call !== 'object') return false;
       const { method, params } = call as { method?: unknown; params?: unknown };
       if (method !== 'tools/call') return false;
       const name = (params as { name?: unknown } | undefined)?.name;
-      return typeof name === 'string' && AUTHED_TOOL_NAMES.has(name);
+      if (typeof name !== 'string' || !AUTHED_TOOL_NAMES.has(name)) return false;
+      // A tool the commerce endpoint does not expose is an unknown tool there,
+      // not a reason to start sign-in.
+      return !(profile === 'commerce' && COMMERCE_EXCLUDED_TOOL_NAMES.has(name));
     });
   };
 
@@ -70,16 +85,15 @@ export function buildApp(): express.Express {
     return (call as { id?: unknown } | undefined)?.id ?? null;
   };
 
-  app.post('/mcp', async (req, res) => {
+  const handleMcp = (profile: ServerProfile) => async (req: express.Request, res: express.Response) => {
     // Public tools (discovery, markets, stores) stay open, so `initialize` and
     // `tools/list` are never challenged. Only an unauthenticated call to an
     // account-scoped tool gets the 401 — without this the SDK returns the
     // link-your-account message inside a 200 JSON-RPC result, which every MCP
     // client reads as a successful call that happened to return text, so the
     // sign-in flow is never offered.
-    if (!req.header('authorization') && needsAuth(req.body)) {
-      const metadataUrl = `${protectedResourceMetadata().resource.replace(/\/mcp$/, '')}/.well-known/oauth-protected-resource/mcp`;
-      res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl}"`);
+    if (!req.header('authorization') && needsAuth(req.body, profile)) {
+      res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl(profile)}"`);
       res.status(401).json({
         jsonrpc: '2.0',
         error: {
@@ -91,7 +105,7 @@ export function buildApp(): express.Express {
       return;
     }
 
-    const server = buildServer(req.header('authorization') ?? undefined);
+    const server = buildServer(req.header('authorization') ?? undefined, { profile });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless
       enableJsonResponse: true,
@@ -113,7 +127,9 @@ export function buildApp(): express.Express {
         });
       }
     }
-  });
+  };
+  app.post('/mcp', handleMcp('full'));
+  app.post('/mcp/commerce', handleMcp('commerce'));
 
   const methodNotAllowed = (_req: express.Request, res: express.Response) => {
     res.status(405).json({
@@ -122,8 +138,8 @@ export function buildApp(): express.Express {
       id: null,
     });
   };
-  app.get('/mcp', methodNotAllowed);
-  app.delete('/mcp', methodNotAllowed);
+  app.get(['/mcp', '/mcp/commerce'], methodNotAllowed);
+  app.delete(['/mcp', '/mcp/commerce'], methodNotAllowed);
 
   mountStore(app);
   mountShare(app);

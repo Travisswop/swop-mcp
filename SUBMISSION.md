@@ -1,64 +1,90 @@
 # Directory submission kit — Swop MCP
 
-Live server: https://mcp.swopme.co/mcp (canonical; swop-mcp.vercel.app is the same deployment)
-22 tools: public data tools (no auth) + account tools behind OAuth 2.1 account
-linking (live — apps.apiswop.co/oauth, QR approval in the Swop app or email
-magic link). Auth mode for listings: "Required when the server asks."
+**Submit this endpoint to directories:** https://mcp.swopme.co/mcp/commerce
+(commerce-only: 26 tools, no money-moving, trading, or prediction-market tools).
+
+The full endpoint, https://mcp.swopme.co/mcp (41 tools, includes sends, swaps,
+perps and prediction markets), stays live for existing users but is NOT the
+listing URL. swop-mcp.vercel.app is the same deployment under another hostname.
+
+Both endpoints: public tools need no auth; account tools use OAuth 2.1 account
+linking (apps.apiswop.co/oauth, QR approval in the Swop app or email magic
+link). Auth mode for listings: "Required when the server asks." Each endpoint
+publishes its own RFC 9728 metadata (`/.well-known/oauth-protected-resource/mcp/commerce`
+for the listing URL).
+
 Commerce is real: every Swop seller's products are purchasable by agents in
 mainnet USDC over x402 (digital = instant settlement to the seller; physical =
 shipping capture + escrow, released on wallet-signed receipt confirmation).
+Sellers are agent-payable in USDC as soon as they add a product, with no KYC.
 
 ## Copy
 
 **Name:** Swop
-**Tagline (≤55 chars):** `Swop profiles, wallets & live prediction markets` (48)
-**Short description:**
-Swop connects your assistant to the Swop platform: look up any swop.id profile
-and its public wallet addresses, and explore live prediction markets — search by
-topic or sport, get real-time prices and orderbooks, alternate lines and player
-props for games, price history, and live game status.
+**Registry description (≤100 chars):** `Sell to people and AI agents: create products, a storefront, and USDC payment links from chat.` (94)
+**Tagline (≤55 chars):** `Sell anything to people and agents, paid in USDC` (48)
+**Short description (Smithery / Glama / PulseMCP / mcp.so):**
+Swop turns a chat into a storefront. Tell your assistant "sell my ebook for $15"
+and it creates the product, puts it on your Swop SmartSite, and hands back one
+link: people see a Buy page, and AI agents get an x402 USDC payment challenge
+they can pay automatically. You can also browse any Swop seller's store and buy
+in USDC, take checkout payments on your own site with signed webhooks, and look
+up any swop.id. Public tools need no account. Selling links your Swop account
+over OAuth.
 
-**Example prompts (for screenshots — take 3–5 in Claude with the connector on):**
-1. "What are the odds the Fed cuts rates in September?"
-2. "Show me live NFL games with betting lines right now"
-3. "Look up travis.swop.id and give me the Solana address" *(needs backend prod deploy first)*
-4. "Chart how the odds on the Bitcoin $45k market moved this month"
-5. "Which sports have the most open prediction volume today?"
+**Categories / tags:** commerce, payments, x402, USDC, storefront, creator tools.
+Do NOT tag trading, perps, prediction markets, or DeFi.
+
+**Example prompts (for screenshots — take 3–5 in Claude with the commerce connector on):**
+1. "Make me a store and sell a 30-minute consulting call for $50."
+2. "Put that on my SmartSite and give me a link I can post on X."
+3. "What does travis.swop.id sell?"
+4. "Set up checkout on my website for my hoodie, and ping my server when someone pays."
+5. "Show me my orders from this week."
+
+Keep `swop_send`, `swop_pay_x402_link`, `swop_swap` and `swop_perps_order` out of
+all demos, screenshots and listing copy (they are not on the commerce endpoint).
 
 **Links:**
 - Privacy policy: https://swopme.co/privacy.html
 - Terms: https://swopme.co/terms.html
 - Support: support@swopme.co (confirm this inbox exists; otherwise use the contact page)
 - Docs/homepage: https://swopme.co
+- Setup guide: https://github.com/Travisswop/swop-mcp/blob/main/docs/add-swop-to-your-ai.md
 
-**Data handling (reviewer question):** the server is a stateless read-only proxy
-over Swop's public APIs; it stores nothing, has no accounts, and handles no
-personal data beyond publicly published swop.id profiles.
+**Data handling (reviewer question):** the server is a stateless proxy over
+Swop's APIs; it stores nothing itself. Public tools read publicly published
+swop.id profiles and stores. Account tools act on the signed-in user's own Swop
+account (products, SmartSite, orders, checkouts, webhooks) through an OAuth
+access token the user granted; the server keeps no copy of it between requests.
 
-**Reviewer test account:** provide a Swop test account for the OAuth-linked tools; public tools need none. Note geo: prediction
-market DATA is available everywhere; trading (not in this version) is geo-gated.
+**Reviewer test account:** provide a Swop test account for the OAuth-linked
+tools; public tools need none.
 
 ## Where to submit
 
-1. **Anthropic connector directory** — Claude.ai → org settings → connector
-   submission portal (docs: claude.com/docs/connectors/building/submission).
-   Manual review; dashboard tracks status; escalation mcp-review@anthropic.com.
+1. **Anthropic connector directory** — needs a Claude **Team or Enterprise org**
+   (submission portal is under org settings; docs:
+   claude.com/docs/connectors/building/submission). Manual review; escalation
+   mcp-review@anthropic.com. Submit the /mcp/commerce URL.
 2. **OpenAI App Directory** — OpenAI Developer Platform → app submission
    (MCP connectivity details + directory metadata + country availability).
-   Recommend country-limiting per Polymarket geo rules at the listing level.
-3. **MCP Registry** (registry.modelcontextprotocol.io) — `server.json` in this
-   repo. Publish with `npx @modelcontextprotocol/publisher` after either
-   (a) pushing this repo to github.com/Travisswop/swop-mcp (namespace
-   io.github.Travisswop), or (b) DNS-verifying co.swopme for the name above.
-4. **Grok** — no public submission process; users add it at grok.com/connectors →
-   New Connector → Custom → paste the /mcp URL. Publish those instructions on
-   swopme.co; catalog tile requires xAI outreach.
+   Submit the /mcp/commerce URL.
+3. **MCP Registry** (registry.modelcontextprotocol.io) — published as
+   `io.github.Travisswop/swop` from `server.json`. v0.2.0 lists the commerce
+   endpoint as the first remote and the full endpoint second. Publish with
+   `mcp-publisher login github` then `mcp-publisher publish`.
+4. **Smithery, Glama, PulseMCP, mcp.so** — use the copy above and the
+   /mcp/commerce URL.
+5. **x402 Bazaar** — list product links from `swop_get_product_link`.
+6. **Grok** — no public submission process; users add it at grok.com/connectors →
+   New Connector → Custom → paste the URL.
 
-## Remaining prerequisites
+## Prerequisites
 
-- [ ] DNS: at Namecheap, add CNAME `mcp` → `cname.vercel-dns.com` on swopme.co
-      (domain is already attached to the Vercel project; it goes live on the record).
-- [ ] Backend prod deploy (deploy-prod.sh) so /api/v5/identity goes live —
-      identity tools 404 until then.
-- [ ] Push this folder to github.com/Travisswop/swop-mcp (registry + reviewer trust).
+- [x] DNS: `mcp.swopme.co` CNAME → Vercel (live).
+- [x] Backend identity routes live (`swop_lookup_identity` returns data).
+- [x] Repo public at github.com/Travisswop/swop-mcp.
+- [x] Registry namespace `io.github.Travisswop/swop` published.
+- [ ] Claude Team/Enterprise org for the Anthropic directory.
 - [ ] Screenshots (prompts above) once connected in Claude.

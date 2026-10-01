@@ -145,8 +145,51 @@ const buildImages = (image?: string, extraImages?: string[]) => {
 const omitUndefined = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
-export function buildServer(authHeader?: string): McpServer {
-  const server = new McpServer({ name: 'swop', version: '0.1.0' });
+// Tools left out of the commerce-only endpoint (/mcp/commerce): everything that
+// moves money on the user's behalf, trades, or touches prediction markets. That
+// endpoint is what goes into directory listings; /mcp keeps the full set.
+export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'swop_send',
+  'swop_pay_x402_link',
+  'swop_swap',
+  'swop_get_swap_quote',
+  'swop_perps_order',
+  'swop_get_spending_delegation',
+  'swop_search_markets',
+  'swop_get_event_markets',
+  'swop_get_event_live_status',
+  'swop_get_orderbook',
+  'swop_get_prices',
+  'swop_get_price_history',
+  'swop_get_taxonomy',
+  'swop_get_taxonomy_stats',
+  'swop_check_predictions_access',
+]);
+
+export type ServerProfile = 'full' | 'commerce';
+
+export const SERVER_INSTRUCTIONS =
+  'Swop lets the user sell to people and AI agents and get paid in USDC. For "sell X", "make me a store", or "take payments", use swop_create_product, then swop_feature_product, then swop_get_product_link. To buy from a Swop seller, use swop_get_store. Always confirm prices and any payment with the user first.';
+
+export const SERVER_VERSION = '0.2.0';
+
+export function buildServer(authHeader?: string, opts: { profile?: ServerProfile } = {}): McpServer {
+  const server = new McpServer(
+    { name: opts.profile === 'commerce' ? 'swop-commerce' : 'swop', version: SERVER_VERSION },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
+
+  // Commerce profile: every tool is still declared once below; excluded ones are
+  // removed as soon as they register, so they never appear in tools/list and a
+  // tools/call for them fails as an unknown tool.
+  if (opts.profile === 'commerce') {
+    const register = server.registerTool.bind(server);
+    server.registerTool = ((name: string, config: unknown, cb: unknown) => {
+      const tool = (register as (...a: unknown[]) => ReturnType<typeof register>)(name, config, cb);
+      if (COMMERCE_EXCLUDED_TOOL_NAMES.has(name)) tool.remove();
+      return tool;
+    }) as typeof server.registerTool;
+  }
 
   const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
 
@@ -518,7 +561,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Create a product',
       description:
-        "Create a sellable product on the linked account's SmartSite. It becomes instantly purchasable by humans at the SmartSite and by AI agents over x402. name, description and image are all REQUIRED by the backend. Confirm name and price with the user before creating.",
+        "Start selling something in one call: creates a product that people can buy on the linked account's Swop SmartSite and AI agents can buy in USDC over x402, with no store setup, payment processor, or verification needed. It becomes instantly purchasable by humans at the SmartSite and by AI agents over x402. name, description and image are all REQUIRED by the backend. Confirm name and price with the user before creating. Then call swop_feature_product to show it on the SmartSite and swop_get_product_link to share it.",
       inputSchema: {
         name: z.string().min(1).max(120).describe('Product name'),
         description: z.string().min(1).max(2000).describe('Product description (required)'),
@@ -588,7 +631,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Create a checkout for a cart',
       description:
-        "Create a real Swop checkout for a cart of the linked account's OWN products, so a buyer pays on the seller's own website instead of being sent to Swop. Prices come from the seller's catalogue and must NOT be sent — a price in the request is rejected. Shipping is charged automatically for physical products, and for those the buyer's name, email and delivery address are REQUIRED (the call is refused otherwise, naming what is missing). Rails: USDC on Solana always; set offerCard when the seller is card-enabled and every item is a physical good — then the response has cardOffered: true and paymentRequest is null until the buyer picks a rail on the seller's page via the public URLs POST /api/v5/checkout-intents/{intentId}/card-payment-intents (Stripe client secret for a Payment Element) or POST .../select-crypto (publishes the Solana Pay request). Otherwise paymentRequest is returned at once (a solana: URL the buyer's wallet opens, also fine as a QR code). Settlement is automatic once the payment lands — nothing to confirm; poll swop_get_checkout for status. Show the buyer the products, quantities and total before creating.",
+        "Take payment on the seller's own website: creates a real Swop checkout for a cart of their products and returns a payment request (Solana Pay URL / QR, or card when enabled); settlement and payout are automatic. Create a real Swop checkout for a cart of the linked account's OWN products, so a buyer pays on the seller's own website instead of being sent to Swop. Prices come from the seller's catalogue and must NOT be sent — a price in the request is rejected. Shipping is charged automatically for physical products, and for those the buyer's name, email and delivery address are REQUIRED (the call is refused otherwise, naming what is missing). Rails: USDC on Solana always; set offerCard when the seller is card-enabled and every item is a physical good — then the response has cardOffered: true and paymentRequest is null until the buyer picks a rail on the seller's page via the public URLs POST /api/v5/checkout-intents/{intentId}/card-payment-intents (Stripe client secret for a Payment Element) or POST .../select-crypto (publishes the Solana Pay request). Otherwise paymentRequest is returned at once (a solana: URL the buyer's wallet opens, also fine as a QR code). Settlement is automatic once the payment lands — nothing to confirm; poll swop_get_checkout for status. Show the buyer the products, quantities and total before creating.",
       inputSchema: {
         items: z
           .array(
@@ -683,7 +726,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Add a webhook',
       description:
-        "Register an https URL that Swop will POST a signed JSON event to when the linked account gets paid (checkout.paid) and paid out (payout.released). Returns a signing secret ONCE — tell the user to store it now; it cannot be retrieved again. Deliveries carry a Swop-Signature header: t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<raw body>\" with the secret>; failed deliveries retry for about 15 hours. Confirm the exact URL with the user first.",
+        "Get notified the moment the user gets paid. Register an https URL that Swop will POST a signed JSON event to when the linked account gets paid (checkout.paid) and paid out (payout.released). Returns a signing secret ONCE — tell the user to store it now; it cannot be retrieved again. Deliveries carry a Swop-Signature header: t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<raw body>\" with the secret>; failed deliveries retry for about 15 hours. Confirm the exact URL with the user first.",
       inputSchema: {
         url: z.string().url().max(2000).describe('https URL to POST events to (http allowed for localhost only)'),
         events: z
@@ -785,7 +828,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Feature a product on my SmartSite',
       description:
-        "Put an already-created product (from swop_create_product) onto the SmartSite as a visible product tile so visitors see and can buy it. Pass the product's templateId (returned by swop_create_product). Use swop_create_product first to make the product, then this to display it.",
+        "Make a product visible on the user's SmartSite as a product tile visitors can buy from. Put an already-created product (from swop_create_product) onto the SmartSite as a visible product tile so visitors see and can buy it. Pass the product's templateId (returned by swop_create_product). Use swop_create_product first to make the product, then this to display it.",
       inputSchema: {
         templateId: z.string().describe('The product/template id from swop_create_product'),
         carouselTitle: z.string().max(80).optional().describe('Optional heading for the product section'),
@@ -1000,7 +1043,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Get a shareable product link',
       description:
-        "Get one shareable link for a product that works for everyone: a person opening it sees a product page with a Buy button; an AI agent hitting it is sent the x402 payment challenge. Use this to share a product in chat, a post, or a message.",
+        "Get one link that sells to everyone: a person who opens it sees a product page with a Buy button, and an AI agent that requests it gets an x402 USDC payment challenge. Use this to share a product in chat, a social post, or a message.",
       inputSchema: {
         handle: z.string().min(1).describe('Seller swop.id, e.g. "travis.swop.id"'),
         sku: z.string().min(1).describe('Product sku/id from swop_get_store'),
@@ -1021,7 +1064,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Get a swop.id storefront',
       description:
-        "List the real products a swop.id sells on their SmartSite, with USDC prices and each product's x402 buyUrl. An agent with an x402-capable wallet purchases by GETting the buyUrl: the first request returns HTTP 402 with payment instructions (exact USDC amount, network, pay-to address), and retrying with a signed X-PAYMENT header completes the purchase and returns a receipt. Always show the user the product, price, and seller and get their confirmation before paying.",
+        "See what any swop.id sells and buy it. List the real products a swop.id sells on their SmartSite, with USDC prices and each product's x402 buyUrl. An agent with an x402-capable wallet purchases by GETting the buyUrl: the first request returns HTTP 402 with payment instructions (exact USDC amount, network, pay-to address), and retrying with a signed X-PAYMENT header completes the purchase and returns a receipt. Always show the user the product, price, and seller and get their confirmation before paying.",
       inputSchema: {
         handle: z.string().min(1).describe('The seller swop.id, e.g. "travis.swop.id"'),
       },

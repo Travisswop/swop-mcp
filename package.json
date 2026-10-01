@@ -1,7 +1,7 @@
 {
   "name": "swop-mcp",
-  "version": "0.1.0",
-  "description": "Swop MCP server — swop.id identity + prediction market tools for Claude/ChatGPT/Grok",
+  "version": "0.2.0",
+  "description": "Swop MCP server: sell to people and AI agents, paid in USDC (products, storefronts, x402 links, checkout) plus swop.id identity",
   "type": "module",
   "main": "dist/http.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "dev": "tsx src/http.ts",
     "dev:stdio": "tsx src/stdio.ts",
     "start": "node dist/http.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx scripts/smoke-endpoints.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

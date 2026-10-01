@@ -1,13 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.Travisswop/swop",
-  "description": "Swop.id profiles, wallet addresses, and live prediction markets with real-time prices.",
+  "description": "Sell to people and AI agents: create products, a storefront, and USDC payment links from chat.",
   "repository": {
     "url": "https://github.com/Travisswop/swop-mcp",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.swopme.co/mcp/commerce"
+    },
     {
       "type": "streamable-http",
       "url": "https://mcp.swopme.co/mcp"
