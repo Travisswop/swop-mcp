@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { PREDICTIONS_API_BASE, SWOP_API_BASE } from './config.js';
 import { getJson, postJson, UpstreamError } from './http-client.js';
 import { getCatalog } from './store.js';
-import { hostImage } from './media.js';
 
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? 'https://mcp.swopme.co';
 // Product pages are served by the Swop app, not by this MCP server. Building
@@ -487,7 +486,7 @@ export function buildServer(authHeader?: string): McpServer {
     {
       title: 'Post to my Swop feed',
       description:
-        "Publish a PUBLIC post to the Swop feed as the linked account's SmartSite: a caption plus up to 4 images. Each image may be an https URL, a data:image/...;base64 URI, or bare base64 (max 3 MB); they are uploaded to Swop's image host first. TWO-STEP like swop_send: call WITHOUT confirm to get a preview (who it posts as, the exact caption, the Swop-hosted image URLs, a previewId, and alreadyPosted if an identical post exists). Show the user that exact caption and every image and get an explicit yes. Then call again with the SAME caption, smartsiteId, the `images` array exactly as the preview returned it, the previewId, and confirm: true. Any change after the preview is refused — preview again. Re-confirming an identical post returns the existing post (duplicate: true) instead of posting twice. Never confirm before the user has seen the preview.",
+        "Publish a PUBLIC post to the Swop feed as the linked account's SmartSite: a caption plus up to 4 images. Each image may be an https URL, a data:image/...;base64 URI, or bare base64 (PNG/JPEG/GIF/WebP, max 5 MB; keep inline images under ~3 MB total so the request fits). TWO-STEP like swop_send: call WITHOUT confirm to get a preview — Swop hosts the images and returns who it posts as, the exact caption, the hosted image URLs and a previewId. Show the user that exact caption and every image and get an explicit yes. Then call again with the SAME caption and smartsiteId, the `images` array exactly as the preview returned it, the previewId, and confirm: true. Any change after the preview is refused — preview again. Each preview publishes at most once: re-confirming it returns the same post (duplicate: true). Never confirm before the user has seen the preview.",
       inputSchema: {
         caption: z.string().max(2000).optional().describe('Post text. Hashtags and @handle.swop.id mentions work as in the app'),
         images: z
@@ -503,8 +502,10 @@ export function buildServer(authHeader?: string): McpServer {
     },
     ({ caption, images, smartsiteId, previewId, confirm }) =>
       run(async () => {
-        const hosted = await Promise.all((images ?? []).map(hostImage));
-        const body = omitUndefined({ caption: caption ?? '', images: hosted, smartsiteId });
+        // Images go to the backend as given; it hosts them behind the token
+        // check. Uploading here, before any token was validated, made this an
+        // unauthenticated image host.
+        const body = omitUndefined({ caption: caption ?? '', images: images ?? [], smartsiteId });
         if (confirm && previewId) {
           return authedCall('POST', '/api/v5/mcp/feed/posts', { ...body, previewId, confirm: true });
         }

@@ -23,10 +23,10 @@ Predictions (polymarket.apiswop.co, all public):
 
 Feed (authed, scope `smartsite.write`, backend `/api/v5/mcp/feed/posts`):
 - `swop_create_feed_post` — public post as the linked SmartSite: caption + up to 4
-  images (https URL, data URI or base64; re-hosted on Swop's Cloudinary with the
-  composer's unsigned `swopapp` preset). Two-step: preview returns a sealed
-  `previewId`; confirm must resend the identical content. Identical re-posts within
-  24h return the existing post.
+  images (https URL, data URI or base64). The backend hosts the images on the preview
+  step, behind the token check; this server never uploads anything. Two-step: preview
+  returns a sealed `previewId`; confirm must resend the identical content, and each
+  preview publishes at most once.
 
 ## Run
 
