@@ -19,6 +19,14 @@ Auth for public tools only).
 ## Grok
 grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 
+## Troubleshooting: “Method not allowed” in your browser
+
+Opening `https://mcp.swopme.co/mcp` directly in a browser returns HTTP 405
+(“Method not allowed”). This is expected: the MCP endpoint accepts connector
+requests over POST, while opening a URL in a browser sends GET. Paste the URL
+into your assistant's MCP connector settings using the steps above. To read
+the “Add Swop to your AI” page in a browser, visit https://mcp.swopme.co/.
+
 ## What your AI can do with Swop
 - Look up any swop.id and its wallet addresses
 - Live prediction-market odds, orderbooks, and price history
