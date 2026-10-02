@@ -1,6 +1,6 @@
 {
   "name": "swop-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Swop MCP server: sell to people and AI agents, paid in USDC (products, storefronts, x402 links, checkout) plus swop.id identity",
   "type": "module",
   "main": "dist/http.js",
@@ -26,5 +26,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "license": "MIT"
 }

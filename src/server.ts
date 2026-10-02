@@ -171,11 +171,20 @@ export type ServerProfile = 'full' | 'commerce';
 export const SERVER_INSTRUCTIONS =
   'Swop lets the user sell to people and AI agents and get paid in USDC. For "sell X", "make me a store", or "take payments", use swop_create_product, then swop_feature_product, then swop_get_product_link. To buy from a Swop seller, use swop_get_store. Always confirm prices and any payment with the user first.';
 
-export const SERVER_VERSION = '0.2.1';
+export const SERVER_VERSION = '0.2.2';
 
 export function buildServer(authHeader?: string, opts: { profile?: ServerProfile } = {}): McpServer {
   const server = new McpServer(
-    { name: opts.profile === 'commerce' ? 'swop-commerce' : 'swop', version: SERVER_VERSION },
+    {
+      name: opts.profile === 'commerce' ? 'swop-commerce' : 'swop',
+      title: 'Swop',
+      version: SERVER_VERSION,
+      websiteUrl: 'https://www.swopme.co',
+      icons: [
+        { src: 'https://mcp.swopme.co/icon.png', mimeType: 'image/png', sizes: ['512x512'] },
+        { src: 'https://mcp.swopme.co/icon-256.png', mimeType: 'image/png', sizes: ['256x256'] },
+      ],
+    },
     { instructions: SERVER_INSTRUCTIONS },
   );
 

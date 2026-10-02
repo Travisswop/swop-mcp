@@ -6,11 +6,29 @@
     "url": "https://github.com/Travisswop/swop-mcp",
     "source": "github"
   },
-  "version": "0.2.1",
+  "version": "0.2.2",
   "remotes": [
     {
       "type": "streamable-http",
       "url": "https://mcp.swopme.co/mcp/commerce"
+    }
+  ],
+  "title": "Swop",
+  "websiteUrl": "https://www.swopme.co",
+  "icons": [
+    {
+      "src": "https://mcp.swopme.co/icon.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    },
+    {
+      "src": "https://mcp.swopme.co/icon-256.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "256x256"
+      ]
     }
   ]
 }

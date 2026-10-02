@@ -102,3 +102,7 @@ agent can pay a seller in USDC with no verification step. Verification gates the
 card scope only — never ask a crypto path for identity.
 
 For the cross-repo map, see **[swop-app-backend/docs/ECOSYSTEM.md](https://github.com/Travisswop/swop-app-backend/blob/main/docs/ECOSYSTEM.md)**.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
