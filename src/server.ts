@@ -44,6 +44,9 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_list_embed_origins',
   'swop_register_embed_origin',
   'swop_remove_embed_origin',
+  'swop_get_my_agent',
+  'swop_message_my_agent',
+  'swop_update_my_agent',
 ]);
 
 type ToolResult = {
@@ -164,6 +167,10 @@ export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_get_taxonomy',
   'swop_get_taxonomy_stats',
   'swop_check_predictions_access',
+  // Goldman Sacks agent control: can turn on autonomous trading and move vault funds.
+  'swop_get_my_agent',
+  'swop_message_my_agent',
+  'swop_update_my_agent',
 ]);
 
 export type ServerProfile = 'full' | 'commerce';
@@ -389,7 +396,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   // in-tool guard stays as the backstop for transports that reach the server
   // without that pre-flight, e.g. stdio (src/stdio.ts).
 
-  const authedCall = async (method: string, path: string, body?: unknown) => {
+  const authedCall = async (method: string, path: string, body?: unknown, timeoutMs = 20_000) => {
     if (!authHeader) {
       throw new Error(
         'Not linked to a Swop account. Connect the Swop connector with authentication (OAuth) to use this tool.',
@@ -403,7 +410,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
         ...(body ? { 'content-type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) throw new Error(`Swop API ${res.status}: ${json.message ?? 'request failed'}`);
@@ -1044,6 +1051,127 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
         confirm && previewId
           ? authedCall('POST', '/api/v5/mcp/perps', { previewId, confirm: true })
           : authedCall('POST', '/api/v5/mcp/perps/preview', { coin, direction, marginUsd, leverage, reduceOnly }),
+      ),
+  );
+
+  // ---------- Goldman Sacks agent (the user's own AI trading agent) ----------
+  // Backend: /api/v5/mcp/agent* (scopes agent.read / agent.write). Changes that
+  // add risk or move money are two-step server-side; narrowing ones apply now.
+
+  server.registerTool(
+    'swop_get_my_agent',
+    {
+      title: 'See my Goldman agent',
+      description:
+        "The linked user's own Goldman Sacks AI trading agent: autonomy level, venue permissions and caps, vault, strategies (status, mirror settings, performance), playbook files, brain settings, recent activity, pending proposals and pending confirmations. Pass playbookFile to read one playbook in full, or mirrorLeader to preview copying a Hyperliquid trader. Read-only: to change anything use swop_update_my_agent; to chat use swop_message_my_agent.",
+      inputSchema: {
+        playbookFile: z.string().optional().describe('A playbook file name from playbookFiles, e.g. "strategy.md", to return its full markdown'),
+        mirrorLeader: z
+          .string()
+          .regex(/^0x[a-fA-F0-9]{40}$/)
+          .optional()
+          .describe("A Hyperliquid 0x address to preview: the leader's book and the orders the vault would place"),
+      },
+      annotations: authedRead,
+    },
+    ({ playbookFile, mirrorLeader }) =>
+      run(() =>
+        playbookFile
+          ? authedCall('GET', `/api/v5/mcp/agent/playbook/${encodeURIComponent(playbookFile)}`)
+          : mirrorLeader
+            ? authedCall('GET', `/api/v5/mcp/agent/mirror/preview?address=${encodeURIComponent(mirrorLeader)}`)
+            : authedCall('GET', '/api/v5/mcp/agent'),
+      ),
+  );
+
+  server.registerTool(
+    'swop_message_my_agent',
+    {
+      title: 'Message my Goldman agent',
+      description:
+        "Send the user's message to their Goldman agent and return its reply, as if they typed it in the agent's chat: questions, market analysis, drafting a plan, editing the playbook, pause, focus. If Goldman answers with a proposal, approve or reject it with swop_update_my_agent. A bare confirmation (\"yes\", \"confirm\") is refused; confirm an armed close or deposit with swop_update_my_agent action confirm_pending. With autopilot on Goldman may trade from a chat request, so send only what the user asked.",
+      inputSchema: {
+        message: z.string().min(1).max(2000).describe("The user's message to Goldman"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ message }) => run(() => authedCall('POST', '/api/v5/mcp/agent/message', { message }, 90_000)),
+  );
+
+  const accessControl = z
+    .object({ enabled: z.boolean().optional(), approvalRequired: z.boolean().optional() })
+    .describe('enabled = venue allowed; approvalRequired:false = trades without asking');
+
+  server.registerTool(
+    'swop_update_my_agent',
+    {
+      title: 'Change my Goldman agent',
+      description:
+        "Change the user's Goldman agent. Narrowing changes apply immediately: stop_strategy, set_autonomy to proposal, lowering caps, update_strategy_focus, write_playbook, update_brain, reject_proposal. Anything that adds risk or moves money returns a preview instead (set_autonomy full, raising caps or enabling venues, start_strategy, mirror, approve_proposal, confirm_pending): show the user its summary, every changes line and the riskNote, get an explicit yes, then call again with only previewId and confirm: true. Previews are single-use and expire in 5 minutes. Get ids and current values from swop_get_my_agent first.",
+      inputSchema: {
+        action: z
+          .enum([
+            'set_autonomy',
+            'update_station',
+            'start_strategy',
+            'stop_strategy',
+            'update_strategy_focus',
+            'write_playbook',
+            'update_brain',
+            'mirror',
+            'approve_proposal',
+            'reject_proposal',
+            'confirm_pending',
+          ])
+          .optional()
+          .describe('The change to make. Omit only when confirming a preview'),
+        level: z.enum(['full', 'proposal']).optional().describe('set_autonomy: full = trades without asking; proposal = asks first'),
+        access: z
+          .record(
+            z.enum(['perps', 'predictions', 'swaps', 'limitOrders', 'aave', 'vault', 'balances', 'strategy']),
+            accessControl,
+          )
+          .optional()
+          .describe('update_station: per-venue switches to change; omitted venues keep their value'),
+        limits: z
+          .record(z.string(), z.number().min(0).nullable())
+          .optional()
+          .describe('update_station: caps to change, e.g. { "dailyCapUsd": 200, "maxLeverage": 3 }; null = uncapped'),
+        strategyId: z.string().optional().describe('start_strategy / stop_strategy / update_strategy_focus'),
+        assets: z.array(z.string()).max(12).optional().describe('update_strategy_focus: market symbols, e.g. ["BTC","ETH"]'),
+        predictionFocus: z.array(z.string()).optional().describe('update_strategy_focus: sports/leagues to focus on'),
+        entryBand: z
+          .object({ minEntryPrice: z.number().optional(), maxEntryPrice: z.number().optional() })
+          .nullable()
+          .optional()
+          .describe('update_strategy_focus: prediction odds band in cents or fractions; null clears'),
+        fileName: z.string().optional().describe('write_playbook: file from playbookFiles, e.g. "risk.md"'),
+        content: z.string().max(16000).optional().describe('write_playbook: the FULL new markdown (replaces the file)'),
+        tier: z.enum(['fast', 'deep']).optional().describe('update_brain: model tier'),
+        memoryEnabled: z.boolean().optional().describe('update_brain'),
+        feedSharingEnabled: z.boolean().optional().describe('update_brain: post trades to the social feed'),
+        leaderAddress: z.string().optional().describe('mirror: Hyperliquid 0x address to copy (omit to keep the current leader)'),
+        scaleMode: z.enum(['equity', 'fixed', 'max']).optional().describe('mirror: equity = your share of their equity; fixed = scaleMultiplier x their size; max = whole vault at their leverage'),
+        scaleMultiplier: z.number().positive().max(100).optional().describe('mirror: with scaleMode fixed, e.g. 0.05 = 5% of their size'),
+        leverageMode: z.enum(['cap', 'skip']).optional().describe('mirror: cap their leverage at maxLeverage, or skip positions above it'),
+        maxLeverage: z.number().int().positive().optional().describe('mirror: leverage ceiling'),
+        coins: z.array(z.string()).optional().describe('mirror: only copy these markets (empty = all)'),
+        driftPct: z.number().min(1).max(50).optional().describe('mirror: rebalance drift threshold %'),
+        copyTriggers: z.boolean().optional().describe("mirror: copy the leader's take-profit/stop-loss"),
+        label: z.string().max(40).optional().describe('mirror: display label'),
+        start: z.boolean().optional().describe('mirror: start it now'),
+        proposalId: z.string().optional().describe('approve_proposal / reject_proposal: from pendingProposals'),
+        reason: z.string().max(300).optional().describe('reject_proposal: optional reason'),
+        previewId: z.string().optional().describe('From a preview response'),
+        confirm: z.boolean().optional().describe('true ONLY after the user explicitly approved that preview'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ previewId, confirm, ...change }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/agent/changes', { previewId, confirm: true }, 60_000)
+          : authedCall('POST', '/api/v5/mcp/agent/changes', omitUndefined(change), 60_000),
       ),
   );
 
