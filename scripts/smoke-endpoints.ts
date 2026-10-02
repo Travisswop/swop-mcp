@@ -56,8 +56,8 @@ async function main() {
     }
     assert.equal(commerce.length, full.length - COMMERCE_EXCLUDED_TOOL_NAMES.size);
     assert.equal(commerce.length, 26, '/mcp/commerce tool count changed');
-    assert.equal(full.length, 44, '/mcp tool count changed');
-    for (const name of ['swop_get_my_agent', 'swop_message_my_agent', 'swop_update_my_agent']) {
+    assert.equal(full.length, 47, '/mcp tool count changed');
+    for (const name of ['swop_get_my_agent', 'swop_message_my_agent', 'swop_update_my_agent', 'swop_get_my_predictions', 'swop_prediction_order', 'swop_cancel_prediction_order']) {
       assert.ok(full.includes(name), `${name} missing from /mcp`);
     }
     for (const name of ['swop_create_product', 'swop_get_store', 'swop_create_checkout', 'swop_get_product_link']) {

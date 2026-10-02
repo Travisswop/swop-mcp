@@ -35,6 +35,9 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_get_swap_quote',
   'swop_swap',
   'swop_perps_order',
+  'swop_get_my_predictions',
+  'swop_prediction_order',
+  'swop_cancel_prediction_order',
   'swop_create_checkout',
   'swop_get_checkout',
   'swop_list_webhooks',
@@ -167,6 +170,9 @@ export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_get_taxonomy',
   'swop_get_taxonomy_stats',
   'swop_check_predictions_access',
+  'swop_get_my_predictions',
+  'swop_prediction_order',
+  'swop_cancel_prediction_order',
   // Goldman Sacks agent control: can turn on autonomous trading and move vault funds.
   'swop_get_my_agent',
   'swop_message_my_agent',
@@ -1052,6 +1058,67 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
           ? authedCall('POST', '/api/v5/mcp/perps', { previewId, confirm: true })
           : authedCall('POST', '/api/v5/mcp/perps/preview', { coin, direction, marginUsd, leverage, reduceOnly }),
       ),
+  );
+
+  // ---------- Prediction-market trading (the user's own Polymarket wallet) ----------
+  // Backend: /api/v5/mcp/predictions* (scope predictions.trade; reads under
+  // wallet.read). BUYs reserve the delegation caps and obey the owner's Goldman
+  // prediction limits server-side; SELL and cancel are risk-reducing.
+
+  server.registerTool(
+    'swop_get_my_predictions',
+    {
+      title: 'See my prediction bets',
+      description:
+        "The linked user's prediction-market (Polymarket) positions with live marks, their open limit orders, and their pUSD betting balance. Use it before selling (gives each position's tokenId and shares) or cancelling (gives orderId). To find new markets use swop_search_markets.",
+      inputSchema: {},
+      annotations: authedRead,
+    },
+    () => run(() => authedCall('GET', '/api/v5/mcp/predictions')),
+  );
+
+  server.registerTool(
+    'swop_prediction_order',
+    {
+      title: 'Buy or sell a prediction outcome',
+      description:
+        "Buy or sell a prediction-market outcome (Polymarket) from the linked user's wallet. TWO-STEP like swop_send: call WITHOUT confirm to preview (live-book price, shares, cost, worst price, payout, caps and limits that apply); show the user that summary and get an explicit yes; then call again with only previewId and confirm: true. Pick the outcome by tokenId — the clobTokenIds entry at the same index as the outcome in swop_search_markets / swop_get_event_markets results — or by eventSlug + outcome name. Size with amountUsd OR shares: each share pays $1 if the outcome wins. Omit limitPrice for a market order (fills now, never worse than maxSlippageCents); set limitPrice (0-1) for a resting limit order. BUYs obey the user's AI spending caps and their Goldman prediction limits; a refusal names the limit. To sell, pass side SELL and the position's tokenId from swop_get_my_predictions.",
+      inputSchema: {
+        side: z.enum(['BUY', 'SELL']).optional().describe('BUY to open/add, SELL to close/reduce. Required for a preview'),
+        tokenId: z.string().optional().describe('Outcome token id: one entry of clobTokenIds'),
+        eventSlug: z.string().optional().describe('Instead of tokenId: the eventSlug of a market result'),
+        outcome: z.string().optional().describe('With eventSlug: outcome name, e.g. "Steelers" or "Yes"'),
+        marketSlug: z.string().optional().describe('With eventSlug: the market slug, when several markets share outcome names (moneyline vs spread)'),
+        amountUsd: z.number().positive().max(1000).optional().describe('Dollar size: spend (BUY) or raise (SELL)'),
+        shares: z.number().positive().optional().describe('Share size instead of amountUsd'),
+        limitPrice: z.number().gt(0).lt(1).optional().describe('Limit price as a probability, e.g. 0.42 = 42¢. Omit for a market order'),
+        maxSlippageCents: z.number().int().min(0).max(5).optional().describe('Market orders: cents past the quoted price to accept, default 2'),
+        previewId: z.string().optional().describe('From the preview step'),
+        confirm: z.boolean().optional().describe('true ONLY after the user explicitly confirmed the preview'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ previewId, confirm, ...order }) =>
+      run(() =>
+        confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/predictions', { previewId, confirm: true }, 90_000)
+          : authedCall('POST', '/api/v5/mcp/predictions/preview', omitUndefined(order), 45_000),
+      ),
+  );
+
+  server.registerTool(
+    'swop_cancel_prediction_order',
+    {
+      title: 'Cancel a prediction limit order',
+      description:
+        "Cancel one of the linked user's open prediction-market limit orders. Takes an orderId from swop_get_my_predictions; shares already filled stay filled. Confirm which order with the user first.",
+      inputSchema: {
+        orderId: z.string().regex(/^0x[a-fA-F0-9]{64}$/).describe('Order id from swop_get_my_predictions openOrders'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    ({ orderId }) =>
+      run(() => authedCall('DELETE', `/api/v5/mcp/predictions/orders/${encodeURIComponent(orderId)}`, undefined, 45_000)),
   );
 
   // ---------- Goldman Sacks agent (the user's own AI trading agent) ----------
