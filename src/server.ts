@@ -446,8 +446,13 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
 
   server.registerTool('swop_get_help', {
     title: 'Swop help',
-    description: 'Curated Swop instructions for payment previews, funded claim links, Goldman AI credits, companion pairing and optional saved context.',
-    inputSchema: { query: z.string().max(240) }, annotations: authedRead,
+    description: "Look up Swop's own how-to answers on payment previews, funded claim links, Goldman AI credits, companion pairing and saved context. Use it when the user asks how a Swop feature works; for their own data use the swop_get_my_* tools instead. Returns the closest curated answer, or says the topic is not covered.",
+    inputSchema: {
+      query: z
+        .string()
+        .max(240)
+        .describe('The question in plain words, e.g. "how do claim links work" or "what are Goldman credits". Max 240 characters.'),
+    }, annotations: authedRead,
   }, params => run(() => authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'swop.help', params })));
 
 
@@ -455,7 +460,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
     'swop_get_my_profile',
     {
       title: 'Get my Swop profile',
-      description: 'The linked Swop account: name, email, and SmartSites (handle, bio). Requires connecting your Swop account.',
+      description: "The linked user's own Swop account: name, email, and SmartSites (handle, bio). Use swop_lookup_identity or swop_search_identities for anyone else's profile. If no Swop account is connected, the call fails asking the user to connect it.",
       inputSchema: {},
       annotations: authedRead,
     },
@@ -876,7 +881,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
     {
       title: 'Feature a product on my SmartSite',
       description:
-        "Show an existing product on the linked account's SmartSite as a tile visitors can buy from. Pass the templateId returned by swop_create_product (or the id from swop_list_my_products).",
+        "Show an existing product on the linked account's SmartSite as a tile visitors can buy from. Pass the templateId returned by swop_create_product (or the id from swop_list_my_products). Each call ADDS a new tile and never replaces existing ones, so check swop_get_my_smartsite first to avoid duplicates; remove a tile with swop_remove_link. The product must belong to the linked account.",
       inputSchema: {
         templateId: z.string().describe('The product/template id from swop_create_product'),
         carouselTitle: z.string().max(80).optional().describe('Optional heading for the product section'),
