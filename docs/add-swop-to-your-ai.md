@@ -7,6 +7,11 @@ paid in USDC. It works inside any assistant that supports MCP connectors. One UR
 https://mcp.swopme.co/mcp/commerce
 ```
 
+Opening the server URL in a browser shows **“Method not allowed” (405)** because
+it accepts MCP requests from your assistant. Paste it into your assistant's
+connector settings using the steps below. For the setup page, visit
+[mcp.swopme.co](https://mcp.swopme.co/).
+
 ## Claude
 Settings → Customize → Connectors → **Add custom connector** → name it "Swop",
 paste the URL. Public tools work immediately; connect your Swop account when
