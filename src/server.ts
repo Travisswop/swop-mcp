@@ -16,6 +16,9 @@ const APP_BASE_URL = process.env.PUBLIC_APP_BASE_URL ?? 'https://www.swopme.app'
 // clients act on to start the OAuth flow. Keep in sync with the authed tools
 // registered below — a name missing here silently loses its challenge.
 export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'swop_get_token_price',
+  'swop_get_sports',
+  'swop_get_help',
   'swop_get_my_profile',
   'swop_list_my_tokens',
   'swop_get_my_balances',
@@ -155,6 +158,8 @@ const omitUndefined = (o: Record<string, unknown>) =>
 // moves money on the user's behalf, trades, or touches prediction markets. That
 // endpoint is what goes into directory listings; /mcp keeps the full set.
 export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'swop_get_token_price',
+  'swop_get_sports',
   'swop_send',
   'swop_pay_x402_link',
   'swop_swap',
@@ -424,6 +429,27 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   };
 
   const authedRead = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+
+  server.registerTool('swop_get_token_price', {
+    title: 'Swop token price',
+    description: 'Verified live token spot price with provider timestamp and exact network/contract identity. Pass a symbol or exact contract; ambiguous names require clarification. Read only, no trade or AI-credit charge.',
+    inputSchema: { token: z.string().min(1).max(100), address: z.string().max(120).optional(), chain: z.string().max(30).optional() },
+    annotations: readOnly,
+  }, params => run(() => authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'token.prices', params })));
+
+  server.registerTool('swop_get_sports', {
+    title: 'Swop sports',
+    description: 'Verified sports scores, schedules, statistics and available odds. UNCC means Charlotte 49ers. Use NCAA for an ambiguous college matchup, NCAAF for college football, NCAAB for college basketball. Preserve requested dates in query. No betting or trade execution.',
+    inputSchema: { query: z.string().min(1).max(240), league: z.string().max(30).optional(), topic: z.enum(['scoreboard','odds','stats','injuries','props']).optional(), teams: z.array(z.string().max(80)).max(2).optional() },
+    annotations: readOnly,
+  }, params => run(() => authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'sports.research', params }, 45000)));
+
+  server.registerTool('swop_get_help', {
+    title: 'Swop help',
+    description: 'Curated Swop instructions for payment previews, funded claim links, Goldman AI credits, companion pairing and optional saved context.',
+    inputSchema: { query: z.string().max(240) }, annotations: authedRead,
+  }, params => run(() => authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'swop.help', params })));
+
 
   server.registerTool(
     'swop_get_my_profile',

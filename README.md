@@ -21,7 +21,7 @@ Setup for Claude, ChatGPT, Cursor and Grok: [docs/add-swop-to-your-ai.md](docs/a
 claude mcp add --transport http swop https://mcp.swopme.co/mcp/commerce
 ```
 
-## Tools (`/mcp/commerce`, 26)
+## Tools (`/mcp/commerce`)
 
 Public, no account:
 - `swop_search_identities`, `swop_lookup_identity`: swop.id → profile + wallet addresses
@@ -52,10 +52,10 @@ The commerce endpoint has no tools that send funds. Its OAuth metadata
 (`/.well-known/oauth-protected-resource/mcp/commerce`) advertises only
 `profile.read wallet.read smartsite.write commerce.write`.
 
-## Full endpoint (`/mcp`, 41 tools)
+## Full endpoint (`/mcp`)
 
 `https://mcp.swopme.co/mcp` stays live for existing Swop users. It is the
-commerce set plus 15 wallet and market tools (sends, x402 payments, swaps,
+commerce set plus wallet and market tools (sends, x402 payments, swaps,
 perps and prediction-market data); the money-moving ones need the owner to
 turn on AI spending, with caps, in the Swop app. New setups should use `/mcp/commerce`.
 The same OAuth link works on both endpoints.
@@ -106,3 +106,16 @@ For the cross-repo map, see **[swop-app-backend/docs/ECOSYSTEM.md](https://githu
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Ask Swop read connectors
+
+The full `/mcp` endpoint now exposes `swop_get_token_price`, `swop_get_sports`,
+and `swop_get_help`, using the same verified adapters as Ask Swop in the app and
+Messages. All three require the linked account's `profile.read` scope and cannot
+transfer funds. `swop_get_help` is also available on `/mcp/commerce`; prices and
+sports remain on the full endpoint. Exact token contracts and network names are
+preserved. Provider failures and ambiguous assets return an explanation rather
+than an invented price, score or market.
+
+Run `npm run build && node scripts/test-assistant-connectors.mjs` for protocol,
+authentication, input-validation and endpoint-isolation checks.
