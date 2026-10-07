@@ -36,8 +36,8 @@ grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 ## What your AI can do with Swop
 - **Sell anything from chat.** "Sell my ebook for $15" creates the product and
   hands back one link: people see a Buy page, and AI agents get an x402 USDC
-  payment challenge they can pay automatically. Digital items settle instantly;
-  physical items collect shipping and hold payment in escrow until delivery.
+  payment challenge they can pay automatically. Physical items collect shipping
+  and hold payment in escrow until delivery.
 - **Turn your SmartSite into a storefront.** Feature products, add links, edit
   your bio, and post to your feed.
 - **Take checkout payments on your own website**, with signed webhooks
@@ -45,8 +45,11 @@ grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 - **Browse any Swop seller's store** and look up any swop.id.
 - **See your orders and balances** once your account is linked.
 
-You're paid in USDC as soon as you add a product, with no store setup or
-verification step.
+Adding a product makes it available for purchase in USDC, with no store setup or
+crypto identity-verification step. Creating a listing does not mean you've been
+paid. For checkout payments, `paid` means the buyer's money arrived; `settled`
+means the seller has been paid out. Ask your AI to check the checkout status
+before treating a payment as a completed payout.
 
 Already connected to `https://mcp.swopme.co/mcp`? It keeps working, with the
 same account link. It is the full Swop toolset for existing users; the commerce
