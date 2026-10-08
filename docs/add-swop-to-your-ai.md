@@ -45,8 +45,11 @@ grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 - **Browse any Swop seller's store** and look up any swop.id.
 - **See your orders and balances** once your account is linked.
 
-You're paid in USDC as soon as you add a product, with no store setup or
-verification step.
+Your product can accept USDC payments as soon as you add it, with no store setup
+or verification step for crypto payments. Creating a product does not mean you've
+been paid. For checkouts created with `swop_create_checkout`, use
+`swop_get_checkout` to check progress: `paid` means the buyer's payment arrived;
+`settled` means the seller has been paid out.
 
 Already connected to `https://mcp.swopme.co/mcp`? It keeps working, with the
 same account link. It is the full Swop toolset for existing users; the commerce
