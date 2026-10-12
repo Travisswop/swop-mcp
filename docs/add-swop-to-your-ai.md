@@ -45,8 +45,10 @@ grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 - **Browse any Swop seller's store** and look up any swop.id.
 - **See your orders and balances** once your account is linked.
 
-You're paid in USDC as soon as you add a product, with no store setup or
-verification step.
+Adding a product makes it available to buy; it does not trigger a payment.
+After a purchase, check your orders for payment and payout status: buyer payment
+and seller payout are separate steps, and physical-item payments remain in escrow
+until delivery is confirmed. Crypto checkout does not require KYC.
 
 Already connected to `https://mcp.swopme.co/mcp`? It keeps working, with the
 same account link. It is the full Swop toolset for existing users; the commerce
