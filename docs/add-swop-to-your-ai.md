@@ -33,6 +33,12 @@ Add to `~/.cursor/mcp.json` (or your project's `.cursor/mcp.json`):
 ## Grok
 grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 
+## Missing a tool?
+
+AI assistants can cache Swop's tool list. If a tool is missing after an update,
+start a fresh chat or session with Swop enabled. Keep your existing Swop
+connector; you do not need to disconnect and reconnect it to try this step.
+
 ## What your AI can do with Swop
 - **Sell anything from chat.** "Sell my ebook for $15" creates the product and
   hands back one link: people see a Buy page, and AI agents get an x402 USDC
