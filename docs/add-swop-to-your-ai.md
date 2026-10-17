@@ -33,6 +33,14 @@ Add to `~/.cursor/mcp.json` (or your project's `.cursor/mcp.json`):
 ## Grok
 grok.com/connectors → **New Connector** → **Custom** → paste the URL.
 
+## Troubleshooting: “Method not allowed” in your browser
+
+Opening `https://mcp.swopme.co/mcp` directly in a browser returns HTTP 405
+(“Method not allowed”). This is expected: the MCP endpoint accepts connector
+requests over POST, while opening a URL in a browser sends GET. Paste the URL
+into your assistant's MCP connector settings using the steps above. To read
+the “Add Swop to your AI” page in a browser, visit https://mcp.swopme.co/.
+
 ## What your AI can do with Swop
 - **Sell anything from chat.** "Sell my ebook for $15" creates the product and
   hands back one link: people see a Buy page, and AI agents get an x402 USDC
