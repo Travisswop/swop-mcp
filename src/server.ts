@@ -188,10 +188,47 @@ export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
 
 export type ServerProfile = 'full' | 'commerce';
 
-export const SERVER_INSTRUCTIONS =
-  'Swop lets the user sell to people and AI agents and get paid in USDC. For "sell X", "make me a store", or "take payments", use swop_create_product, then swop_feature_product, then swop_get_product_link. To buy from a Swop seller, use swop_get_store. Always confirm prices and any payment with the user first.';
+// What the assistant tells the user Swop can do, in the user's own terms: what
+// they can sell, see, send or change. This is the answer to "what can you do?"
+// — it goes out as server instructions on every session and is what
+// swop_get_help returns for a capability question — so it names outcomes,
+// never tool names, scopes, endpoints or infrastructure. Each endpoint gets
+// only the list its tools can honour.
+const SELL_CAPABILITIES = [
+  '- Sell: turn anything into a product with one link — people buy on a Buy page and AI agents pay automatically in USDC; show it on their Swop page; take checkout on their own website with signed webhooks; see their orders.',
+  "- Their Swop page (SmartSite): change the name, bio, look and links; post to their feed.",
+];
+const LOOKUP_CAPABILITIES = '- Look things up: people by swop.id, any seller\'s store, their own profile, balances and the tokens they launched';
+const FULL_CAPABILITIES = `What the user can do with Swop from this chat:
+${SELL_CAPABILITIES.join('\n')}
+- Money: see balances; send USDC to any swop.id or wallet address; pay an x402 payment link; swap tokens on Base, Ethereum, Polygon, Arbitrum or Optimism. Every payment is previewed, needs an explicit yes, and stays inside the per-transaction and daily caps they set in the Swop app.
+- Trading: open or close perps positions; buy or sell prediction-market outcomes and see their positions.
+- Their AI trading agent (Goldman): see what it is running — strategies, autonomy, caps, vault, playbook, proposals; talk to it; start, stop, revise or refocus a strategy; change how autonomous it is; edit its playbook; approve or reject what it proposes. Anything that adds risk or moves money is previewed first.
+${LOOKUP_CAPABILITIES}, token prices and history, swap quotes, sports scores and odds, prediction markets.
+Done in the Swop app, not here: signing in, cards, Solana swaps, sending any token other than USDC, raising caps or turning AI spending on.`;
+const COMMERCE_CAPABILITIES = `What the user can do with Swop from this chat:
+${SELL_CAPABILITIES.join('\n')}
+${LOOKUP_CAPABILITIES}.
+This connection cannot move money: sends, payments, swaps, trading and their AI trading agent live in the Swop app.`;
+
+export const capabilitiesFor = (profile: ServerProfile = 'full'): string =>
+  profile === 'commerce' ? COMMERCE_CAPABILITIES : FULL_CAPABILITIES;
+
+const CONDUCT =
+  'Talk about Swop in plain language, as what the user can sell, see, send or change. Never mention tool names, scopes, endpoints, repositories, APIs or infrastructure to the user, and when asked what you can do answer from the list above and nothing beyond it. For "sell X", "make me a store" or "take payments": create the product, feature it on their SmartSite, then share its link. To buy from a Swop seller, read their store first. Always confirm prices and any payment with the user before acting.';
+
+export const serverInstructions = (profile: ServerProfile = 'full'): string =>
+  `Swop lets the user sell to people and AI agents and get paid in USDC${profile === 'commerce' ? '' : ', and run their wallet and AI trading agent'}, all from chat.\n\n${capabilitiesFor(profile)}\n\n${CONDUCT}`;
+
+export const SERVER_INSTRUCTIONS = serverInstructions('full');
 
 export const SERVER_VERSION = '0.2.2';
+
+// "What can you do?" in its usual shapes. Answered from the capability list
+// above instead of the backend's how-to corpus, which has no such topic and
+// would otherwise dump every how-to answer.
+const CAPABILITY_QUESTION =
+  /\b(what (can|do|could) (you|i|we|swop)\b|what are you able|capabilit|features?\b|overview|what is swop|help me with|what else)/i;
 
 export function buildServer(authHeader?: string, opts: { profile?: ServerProfile } = {}): McpServer {
   const server = new McpServer(
@@ -205,7 +242,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
         { src: 'https://mcp.swopme.co/icon-256.png', mimeType: 'image/png', sizes: ['256x256'] },
       ],
     },
-    { instructions: SERVER_INSTRUCTIONS },
+    { instructions: serverInstructions(opts.profile) },
   );
 
   // Commerce profile: every tool is still declared once below; excluded ones are
@@ -448,14 +485,19 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
 
   server.registerTool('swop_get_help', {
     title: 'Swop help',
-    description: "Look up Swop's own how-to answers on payment previews, funded claim links, Goldman AI credits, companion pairing and saved context. Use it when the user asks how a Swop feature works; for their own data use the swop_get_my_* tools instead. Returns the closest curated answer, or says the topic is not covered.",
+    description: "Answer \"what can I do with Swop?\" (returns the plain-language list of what this connection can do for the user) and look up Swop's own how-to answers on payment previews, funded claim links, Goldman AI credits, companion pairing and saved context. Use it when the user asks what Swop can do or how a feature works; for their own data use the swop_get_my_* tools instead. Returns the closest curated answer, or says the topic is not covered.",
     inputSchema: {
       query: z
         .string()
         .max(240)
         .describe('The question in plain words, e.g. "how do claim links work" or "what are Goldman credits". Max 240 characters.'),
     }, annotations: authedRead,
-  }, params => run(() => authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'swop.help', params })));
+  }, params =>
+    run(() =>
+      CAPABILITY_QUESTION.test(params.query)
+        ? Promise.resolve({ message: capabilitiesFor(opts.profile), provider: 'swop', action: 'swop.help' })
+        : authedCall('POST', '/api/v5/mcp/assistant/read', { action: 'swop.help', params }),
+    ));
 
 
   server.registerTool(
@@ -981,9 +1023,9 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   server.registerTool(
     'swop_send',
     {
-      title: 'Send USDC from my Swop wallet',
+      title: 'Send money (USDC) to a swop.id or wallet address',
       description:
-        'Send USDC (on Base) from the linked Swop wallet to a swop.id handle or 0x address, within the caps the user set in the Swop app. TWO-STEP: call WITHOUT confirm first to get a preview (resolved recipient, amount, caps); show that summary to the user and get their explicit yes; then call again with the returned previewId and confirm: true. Over-cap or confirm-only settings return a Swop-app approval link instead of executing. Never call with confirm before the user has seen the preview.',
+        'Send money as USDC on Base from the linked Swop wallet to a swop.id handle or 0x address, within the caps the user set in the Swop app. USDC only: any other token, and anything on Solana, is sent from the Swop app. TWO-STEP: call WITHOUT confirm first to get a preview (resolved recipient, amount, caps); show that summary to the user and get their explicit yes; then call again with the returned previewId and confirm: true. Over-cap or confirm-only settings return a Swop-app approval link instead of executing. Never call with confirm before the user has seen the preview.',
       inputSchema: {
         to: z.string().min(1).describe('Recipient: swop.id handle (e.g. "alice.swop.id") or 0x address'),
         amountUsd: z.number().positive().max(1000).describe('Amount in USD (sent as USDC)'),
@@ -1168,9 +1210,9 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   server.registerTool(
     'swop_get_my_agent',
     {
-      title: 'See my Goldman agent',
+      title: "See my AI trading agent's strategies and settings",
       description:
-        "The linked user's own Goldman Sacks AI trading agent: autonomy level, venue permissions and caps, vault, strategies (status, mirror settings, performance), playbook files, brain settings, recent activity, pending proposals and pending confirmations. Pass playbookFile to read one playbook in full, or mirrorLeader to preview copying a Hyperliquid trader. Read-only: to change anything use swop_update_my_agent; to chat use swop_message_my_agent.",
+        "The linked user's own AI trading agent (Goldman): what it is running and how much rope it has. Use it for \"how is my agent doing\", \"what is my strategy\", \"what is it allowed to trade\". Returns autonomy level, venue permissions and caps, vault, strategies (status, mirror settings, performance), playbook files, brain settings, recent activity, pending proposals and pending confirmations. Pass playbookFile to read one playbook in full, or mirrorLeader to preview copying a Hyperliquid trader. Read-only: to change anything use swop_update_my_agent; to chat use swop_message_my_agent.",
       inputSchema: {
         playbookFile: z.string().optional().describe('A playbook file name from playbookFiles, e.g. "strategy.md", to return its full markdown'),
         mirrorLeader: z
@@ -1194,9 +1236,9 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   server.registerTool(
     'swop_message_my_agent',
     {
-      title: 'Message my Goldman agent',
+      title: 'Talk to my AI trading agent',
       description:
-        "Send the user's message to their Goldman agent and return its reply, as if they typed it in the agent's chat: questions, market analysis, drafting a plan, editing the playbook, pause, focus. If Goldman answers with a proposal, approve or reject it with swop_update_my_agent. A bare confirmation (\"yes\", \"confirm\") is refused; confirm an armed close or deposit with swop_update_my_agent action confirm_pending. With autopilot on Goldman may trade from a chat request, so send only what the user asked.",
+        "Send the user's message to their AI trading agent (Goldman) and return its reply, as if they typed it in the agent's chat: questions, market analysis, drafting a plan, editing the playbook, pause, focus. If Goldman answers with a proposal, approve or reject it with swop_update_my_agent. A bare confirmation (\"yes\", \"confirm\") is refused; confirm an armed close or deposit with swop_update_my_agent action confirm_pending. With autopilot on Goldman may trade from a chat request, so send only what the user asked.",
       inputSchema: {
         message: z.string().min(1).max(2000).describe("The user's message to Goldman"),
       },
@@ -1212,9 +1254,9 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   server.registerTool(
     'swop_update_my_agent',
     {
-      title: 'Change my Goldman agent',
+      title: 'Manage my AI trading agent: strategies, autonomy, caps, playbook',
       description:
-        "Change the user's Goldman agent. Narrowing changes apply immediately: stop_strategy, set_autonomy to proposal, lowering caps, update_strategy_focus, write_playbook, update_brain, reject_proposal. Use revise_strategy to edit a specific existing plan’s market universe, entry/exit rules and rationale. This always returns a before/after preview, including when the plan is already running. Anything that adds risk or moves money returns a preview instead (revise_strategy, set_autonomy full, raising caps or enabling venues, start_strategy, mirror, approve_proposal, confirm_pending): show the user its summary, every changes line and the riskNote, get an explicit yes, then call again with only previewId and confirm: true. Previews are single-use and expire in 5 minutes. Get ids and current values from swop_get_my_agent first.",
+        "Manage the user's AI trading agent (Goldman): start, stop, revise or refocus a strategy, set how autonomous it is, change its caps and venues, edit its playbook or brain, mirror a trader, approve or reject its proposals. Narrowing changes apply immediately: stop_strategy, set_autonomy to proposal, lowering caps, update_strategy_focus, write_playbook, update_brain, reject_proposal. Use revise_strategy to edit a specific existing plan’s market universe, entry/exit rules and rationale. This always returns a before/after preview, including when the plan is already running. Anything that adds risk or moves money returns a preview instead (revise_strategy, set_autonomy full, raising caps or enabling venues, start_strategy, mirror, approve_proposal, confirm_pending): show the user its summary, every changes line and the riskNote, get an explicit yes, then call again with only previewId and confirm: true. Previews are single-use and expire in 5 minutes. Get ids and current values from swop_get_my_agent first.",
       inputSchema: {
         action: z
           .enum([

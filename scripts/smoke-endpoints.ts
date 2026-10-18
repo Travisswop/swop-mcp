@@ -42,6 +42,18 @@ async function main() {
     });
     assert.equal(init.res.status, 200);
     assert.match(init.json.result.instructions, /sell to people and AI agents/);
+    // The commerce endpoint must not advertise what it cannot do.
+    assert.doesNotMatch(init.json.result.instructions, /trading agent\): see|send USDC to any/);
+    assert.match(init.json.result.instructions, /Never mention tool names/);
+    const fullInit = await rpc(`${base}/mcp`, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '0' } },
+    });
+    for (const re of [/AI trading agent/, /send USDC to any swop\.id/, /prediction-market outcomes/, /Never mention tool names/]) {
+      assert.match(fullInit.json.result.instructions, re, `/mcp instructions missing ${re}`);
+    }
 
     const list = async (path: string) =>
       (await rpc(`${base}${path}`, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json.result.tools.map(
