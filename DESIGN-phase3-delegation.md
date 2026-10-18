@@ -63,8 +63,13 @@ Two modes, chosen by what Privy wiring supports (see exploration notes):
 3. amountUsd ≤ caps.perTxUsd.
 4. ledger sum (last 24h) + amountUsd ≤ caps.dailyUsd.
 5. Recipient passes recipientPolicy.
-6. Action-specific: geo check for predictions; token allowlist for sends
-   (slice 1: USDC only).
+6. Action-specific: geo check for predictions; for sends, the asset must be
+   one the wallet HOLDS on Base, Ethereum, Polygon or Arbitrum (USDC and the
+   native coin by fixed address, any other symbol only if it appears in the
+   wallet's indexed holdings, a 0x address read on chain) and must have a
+   price from the verified price read — amountUsd for every cap check is
+   that price × the token amount. No price, no send. Solana is refused.
+   (Slice 1 was USDC on Base only; multi-token since 2026-10-18.)
 Deny → 409 with `{ reason, confirmUrl }` so the tool degrades gracefully.
 
 ## API (flag ENABLE_MCP_DELEGATION, default off)
@@ -107,7 +112,10 @@ but description states money movement + confirmation requirement.
 - Ledger row + activity tag + push for EVERY delegated action, no exceptions.
 - Revocation is instant (checked per action, no caching).
 - Caps are enforced server-side only; nothing client-supplied.
-- Slice 1 sends USDC only; no arbitrary calldata, ever, on this path.
+- A send is an ERC-20 `transfer` or a native value transfer of an asset the
+  wallet holds, sized by the preview; no arbitrary calldata, ever, on this
+  path. The execute step signs exactly the previewed asset/amount/chain and
+  refuses a confirm that re-states anything different (burning the preview).
 - Panic switch: revoking the OAuth grant also suspends the delegation.
 
 ## Slices
