@@ -119,3 +119,29 @@ than an invented price, score or market.
 
 Run `npm run build && node scripts/test-assistant-connectors.mjs` for protocol,
 authentication, input-validation and endpoint-isolation checks.
+
+### Revising an existing Ovi strategy
+
+Use the full `/mcp` endpoint with OAuth `agent.read` and `agent.write` scopes.
+Refresh the connector's tool list after an update; the commerce-only endpoint
+and public read-only connectors do not expose agent controls.
+
+1. Read `swop_get_my_agent` for the exact strategy ID, current rules and limits.
+2. Resolve requested markets with `swop_resolve_strategy_markets`, for example
+   `{"request":"trade gold, ETH and any stock"}`. Stock discovery uses a supported
+   equity-underlying catalog filtered against current Hyperliquid listings. It
+   does not treat all builder-DEX markets as stocks or establish that collateral
+   is funded.
+3. Call `swop_update_my_agent` with `action: "revise_strategy"`, `strategyId`, and
+   a `revision` containing the desired `assets`, `title`, `brief`,
+   `entryCondition`, `exitCondition`, `selectionCriteria`, `executionPlan`, or
+   `riskControls`. Update contradictory old single-market wording together with
+   the market list. Omitted fields stay unchanged; dollar limits, permissions,
+   funding and runtime are not writable through this action.
+4. Show the complete returned diff and risk note. After the owner explicitly
+   approves it, call again with only `previewId` and `confirm: true`.
+
+The preview is single-use, expires after five minutes, and is bound to the owner
+and OAuth client. Concurrent rule or limit edits invalidate it. A running plan
+uses its revised rules on subsequent evaluations; an edit does not guarantee
+an order or bypass market, collateral or risk checks.

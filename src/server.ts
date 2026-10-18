@@ -50,6 +50,7 @@ export const AUTHED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_list_embed_origins',
   'swop_register_embed_origin',
   'swop_remove_embed_origin',
+  'swop_resolve_strategy_markets',
   'swop_get_my_agent',
   'swop_message_my_agent',
   'swop_update_my_agent',
@@ -179,6 +180,7 @@ export const COMMERCE_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'swop_prediction_order',
   'swop_cancel_prediction_order',
   // Goldman Sacks agent control: can turn on autonomous trading and move vault funds.
+  'swop_resolve_strategy_markets',
   'swop_get_my_agent',
   'swop_message_my_agent',
   'swop_update_my_agent',
@@ -1152,6 +1154,13 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
       run(() => authedCall('DELETE', `/api/v5/mcp/predictions/orders/${encodeURIComponent(orderId)}`, undefined, 45_000)),
   );
 
+  server.registerTool('swop_resolve_strategy_markets', {
+    title: 'Resolve strategy markets',
+    description: 'Resolve a requested perps universe such as gold, ETH and any stock to supported live Hyperliquid market IDs. Read-only; never places trades. Show the resulting market list when proposing a strategy revision. Stock discovery covers supported equity underlyings, not all builder-DEX assets. Requires agent.read.',
+    inputSchema: { request: z.string().min(1).max(2000) },
+    annotations: authedRead,
+  }, ({ request }) => run(() => authedCall('POST', '/api/v5/mcp/agent/markets', { request })));
+
   // ---------- Goldman Sacks agent (the user's own AI trading agent) ----------
   // Backend: /api/v5/mcp/agent* (scopes agent.read / agent.write). Changes that
   // add risk or move money are two-step server-side; narrowing ones apply now.
@@ -1205,7 +1214,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
     {
       title: 'Change my Goldman agent',
       description:
-        "Change the user's Goldman agent. Narrowing changes apply immediately: stop_strategy, set_autonomy to proposal, lowering caps, update_strategy_focus, write_playbook, update_brain, reject_proposal. Anything that adds risk or moves money returns a preview instead (set_autonomy full, raising caps or enabling venues, start_strategy, mirror, approve_proposal, confirm_pending): show the user its summary, every changes line and the riskNote, get an explicit yes, then call again with only previewId and confirm: true. Previews are single-use and expire in 5 minutes. Get ids and current values from swop_get_my_agent first.",
+        "Change the user's Goldman agent. Narrowing changes apply immediately: stop_strategy, set_autonomy to proposal, lowering caps, update_strategy_focus, write_playbook, update_brain, reject_proposal. Use revise_strategy to edit a specific existing plan’s market universe, entry/exit rules and rationale. This always returns a before/after preview, including when the plan is already running. Anything that adds risk or moves money returns a preview instead (revise_strategy, set_autonomy full, raising caps or enabling venues, start_strategy, mirror, approve_proposal, confirm_pending): show the user its summary, every changes line and the riskNote, get an explicit yes, then call again with only previewId and confirm: true. Previews are single-use and expire in 5 minutes. Get ids and current values from swop_get_my_agent first.",
       inputSchema: {
         action: z
           .enum([
@@ -1214,6 +1223,7 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
             'start_strategy',
             'stop_strategy',
             'update_strategy_focus',
+            'revise_strategy',
             'write_playbook',
             'update_brain',
             'mirror',
@@ -1235,8 +1245,19 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
           .record(z.string(), z.number().min(0).nullable())
           .optional()
           .describe('update_station: caps to change, e.g. { "dailyCapUsd": 200, "maxLeverage": 3 }; null = uncapped'),
-        strategyId: z.string().optional().describe('start_strategy / stop_strategy / update_strategy_focus'),
+        strategyId: z.string().optional().describe('start_strategy / stop_strategy / update_strategy_focus / revise_strategy'),
         assets: z.array(z.string()).max(12).optional().describe('update_strategy_focus: market symbols, e.g. ["BTC","ETH"]'),
+        revision: z.object({
+          title: z.string().min(1).max(140).optional(),
+          assets: z.array(z.string().min(1).max(60)).min(1).max(100).optional(),
+          brief: z.string().min(1).max(2000).optional(),
+          entryCondition: z.string().min(1).max(2000).optional(),
+          exitCondition: z.string().min(1).max(2000).optional(),
+          selectionCriteria: z.array(z.string().min(1).max(1000)).min(1).max(12).optional(),
+          executionPlan: z.array(z.string().min(1).max(1000)).min(1).max(12).optional(),
+          riskControls: z.array(z.string().min(1).max(1000)).min(1).max(12).optional(),
+        }).strict().optional().describe('revise_strategy: explicit patch to the existing plan; omitted fields stay unchanged. Read current rules first and update contradictory ETH-only wording when broadening markets. Resolve exact assets with swop_resolve_strategy_markets. Limits, permissions and runtime are not editable here.'),
+
         predictionFocus: z.array(z.string()).optional().describe('update_strategy_focus: sports/leagues to focus on'),
         entryBand: z
           .object({ minEntryPrice: z.number().optional(), maxEntryPrice: z.number().optional() })
