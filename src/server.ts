@@ -201,11 +201,11 @@ const SELL_CAPABILITIES = [
 const LOOKUP_CAPABILITIES = '- Look things up: people by swop.id, any seller\'s store, their own profile, balances and the tokens they launched';
 const FULL_CAPABILITIES = `What the user can do with Swop from this chat:
 ${SELL_CAPABILITIES.join('\n')}
-- Money: see balances; send USDC to any swop.id or wallet address; pay an x402 payment link; swap tokens on Base, Ethereum, Polygon, Arbitrum or Optimism. Every payment is previewed, needs an explicit yes, and stays inside the per-transaction and daily caps they set in the Swop app.
+- Money: see balances; send USDC, ETH, POL or any token they hold on Base, Ethereum, Polygon or Arbitrum to any swop.id or wallet address; pay an x402 payment link; swap tokens on Base, Ethereum, Polygon, Arbitrum or Optimism. Every payment is previewed, needs an explicit yes, and stays inside the per-transaction and daily caps they set in the Swop app.
 - Trading: open or close perps positions; buy or sell prediction-market outcomes and see their positions.
 - Their AI trading agent (Goldman): see what it is running — strategies, autonomy, caps, vault, playbook, proposals; talk to it; start, stop, revise or refocus a strategy; change how autonomous it is; edit its playbook; approve or reject what it proposes. Anything that adds risk or moves money is previewed first.
 ${LOOKUP_CAPABILITIES}, token prices and history, swap quotes, sports scores and odds, prediction markets.
-Done in the Swop app, not here: signing in, cards, Solana swaps, sending any token other than USDC, raising caps or turning AI spending on.`;
+Done in the Swop app, not here: signing in, cards, anything on Solana (swaps and sends), raising caps or turning AI spending on.`;
 const COMMERCE_CAPABILITIES = `What the user can do with Swop from this chat:
 ${SELL_CAPABILITIES.join('\n')}
 ${LOOKUP_CAPABILITIES}.
@@ -1023,23 +1023,29 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
   server.registerTool(
     'swop_send',
     {
-      title: 'Send money (USDC) to a swop.id or wallet address',
+      title: 'Send money or tokens to a swop.id or wallet address',
       description:
-        'Send money as USDC on Base from the linked Swop wallet to a swop.id handle or 0x address, within the caps the user set in the Swop app. USDC only: any other token, and anything on Solana, is sent from the Swop app. TWO-STEP: call WITHOUT confirm first to get a preview (resolved recipient, amount, caps); show that summary to the user and get their explicit yes; then call again with the returned previewId and confirm: true. Over-cap or confirm-only settings return a Swop-app approval link instead of executing. Never call with confirm before the user has seen the preview.',
+        "Send money or tokens from the linked Swop wallet to a swop.id handle or 0x address, within the caps the user set in the Swop app. Default is USDC on Base. Any other token the wallet holds on Base, Ethereum, Polygon or Arbitrum works too — ETH, POL, or any ERC-20 — by symbol or 0x contract address, with `chain`. Size the send with amountUsd (USD, converted at Swop's verified price) OR amount (token units), never both. Solana is not supported here (the user sends Solana assets from the Swop app). TWO-STEP: call WITHOUT confirm first to get a preview (resolved recipient, token, chain, amount in token units and in USD, the price used, wallet balance, caps); show the user the token, chain, both amounts and the recipient, and get their explicit yes; then call again with the returned previewId, confirm: true and the same to/token/chain/amount — a confirm that states anything different from the preview is refused. Each preview executes at most once. Tokens the wallet does not hold, and tokens without a verifiable USD price, are refused at preview. Over-cap or confirm-only settings return a Swop-app approval link instead of executing. Never call with confirm before the user has seen the preview.",
       inputSchema: {
         to: z.string().min(1).describe('Recipient: swop.id handle (e.g. "alice.swop.id") or 0x address'),
-        amountUsd: z.number().positive().max(1000).describe('Amount in USD (sent as USDC)'),
+        amountUsd: z.number().positive().max(1000).optional().describe('Amount in USD. For USDC this is the amount sent; for any other token it is converted at the verified price'),
+        amount: z.string().optional().describe('Amount in token units as a decimal string (e.g. "0.25"). Use instead of amountUsd'),
+        token: z.string().optional().describe('Token symbol (default USDC; ETH or POL for the native coin) or 0x contract address'),
+        chain: z.enum(['base', 'ethereum', 'polygon', 'arbitrum']).optional().describe('Chain the token is on (default base)'),
         previewId: z.string().optional().describe('From the preview step'),
         confirm: z.boolean().optional().describe('true ONLY after the user explicitly confirmed the preview'),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     },
-    ({ to, amountUsd, previewId, confirm }) =>
-      run(() =>
-        confirm && previewId
-          ? authedCall('POST', '/api/v5/mcp/send', { previewId, confirm: true })
-          : authedCall('POST', '/api/v5/mcp/send/preview', { to, amountUsd }),
-      ),
+    ({ to, amountUsd, amount, token, chain, previewId, confirm }) =>
+      run(() => {
+        // The echo on confirm lets the backend refuse a confirm that no longer
+        // describes the preview (changed token, chain, amount or recipient).
+        const body = omitUndefined({ to, amountUsd, amount, token, chain });
+        return confirm && previewId
+          ? authedCall('POST', '/api/v5/mcp/send', { ...body, previewId, confirm: true })
+          : authedCall('POST', '/api/v5/mcp/send/preview', body);
+      }),
   );
 
   server.registerTool(

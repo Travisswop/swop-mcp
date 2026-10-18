@@ -43,7 +43,7 @@ async function main() {
     assert.equal(init.res.status, 200);
     assert.match(init.json.result.instructions, /sell to people and AI agents/);
     // The commerce endpoint must not advertise what it cannot do.
-    assert.doesNotMatch(init.json.result.instructions, /trading agent\): see|send USDC to any/);
+    assert.doesNotMatch(init.json.result.instructions, /trading agent\): see|any token they hold/);
     assert.match(init.json.result.instructions, /Never mention tool names/);
     const fullInit = await rpc(`${base}/mcp`, {
       jsonrpc: '2.0',
@@ -51,7 +51,7 @@ async function main() {
       method: 'initialize',
       params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '0' } },
     });
-    for (const re of [/AI trading agent/, /send USDC to any swop\.id/, /prediction-market outcomes/, /Never mention tool names/]) {
+    for (const re of [/AI trading agent/, /send USDC, ETH, POL or any token they hold on Base, Ethereum, Polygon or Arbitrum to any swop\.id/, /prediction-market outcomes/, /Never mention tool names/]) {
       assert.match(fullInit.json.result.instructions, re, `/mcp instructions missing ${re}`);
     }
 
