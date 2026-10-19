@@ -51,7 +51,7 @@ async function main() {
       method: 'initialize',
       params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '0' } },
     });
-    for (const re of [/AI trading agent/, /send USDC, ETH, POL or any token they hold on Base, Ethereum, Polygon or Arbitrum to any swop\.id/, /prediction-market outcomes/, /Never mention tool names/]) {
+    for (const re of [/AI trading agent/, /send USDC, ETH, POL or any token they hold with a liquid market on Base, Ethereum, Polygon or Arbitrum to any swop\.id/, /prediction-market outcomes/, /Never mention tool names/]) {
       assert.match(fullInit.json.result.instructions, re, `/mcp instructions missing ${re}`);
     }
 
