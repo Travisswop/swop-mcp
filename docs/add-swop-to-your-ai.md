@@ -51,3 +51,17 @@ verification step.
 Already connected to `https://mcp.swopme.co/mcp`? It keeps working, with the
 same account link. It is the full Swop toolset for existing users; the commerce
 URL above is the recommended one for new setups.
+
+## Troubleshooting
+
+- **Public tools work, but account tools ask you to sign in:** connect Swop
+  with OAuth instead of No Auth, then complete the Swop sign-in prompt.
+  Public access alone does not link your account. Never paste passwords or
+  access tokens into chat.
+- **A tool is missing after an update:** start a fresh assistant session so
+  the client can load the current tool list. MCP clients can cache that list;
+  reconnecting alone may leave it unchanged.
+- **Send, swap, or x402 payment tools are missing:** `/mcp/commerce` deliberately
+  excludes money-moving tools. Signing in or enabling AI spending will not add
+  them to this endpoint. You can still create products and checkout links,
+  browse stores, and read your orders and balances with the appropriate access.
