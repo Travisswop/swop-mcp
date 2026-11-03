@@ -75,6 +75,56 @@ function fail(err: unknown): ToolResult {
   return { content: [{ type: 'text', text: msg }], isError: true };
 }
 
+// The reason the backend gave, when it gave one. Both shapes appear across the
+// v5 MCP routes, and a non-string value is worse than no detail at all.
+function upstreamDetail(json: Record<string, unknown>): string {
+  for (const key of ['message', 'error'] as const) {
+    const v = json[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+
+// What a failed authed call says to the assistant. The old text was
+// `Swop API 401: request failed`, which reads as a generic outage: the model
+// either retries it unchanged or tells the user Swop is down, when the fix is
+// to sign in again. Each status now names the next action instead.
+//
+// `isConfirm` marks the confirm step of a two-step call (send, swap, perps,
+// x402, prediction order, feed post, agent change). There, a failure the model
+// reads as "nothing happened" is the dangerous one: the transaction may
+// already be on-chain, and building a fresh preview would send twice.
+// Re-confirming the SAME previewId cannot — the backend executes a preview at
+// most once — so that is the only retry this text ever recommends.
+export function authedFailureMessage(
+  status: number | null,
+  detail: string,
+  isConfirm: boolean,
+): string {
+  // Quoted so the backend's own wording never runs into the sentence after it.
+  const said = detail ? ` Swop said: "${detail}".` : '';
+  const confirmTail = isConfirm
+    ? ' This was the confirm step, so it may already have gone through. Do NOT build a new preview: re-confirm the SAME previewId (a preview executes at most once, so it cannot run twice), or check the result in Swop — balance, orders, positions, feed — before telling the user it failed.'
+    : '';
+  if (status === null) {
+    const why = detail ? ` (${detail})` : '';
+    return `Could not reach Swop${why}.${confirmTail || ' Retry once; if it fails again, tell the user Swop is unreachable right now.'}`;
+  }
+  if (status === 401) {
+    return `The Swop account link is no longer valid (HTTP 401).${said} Ask the user to reconnect Swop and sign in again — retrying without that fails the same way.${confirmTail}`;
+  }
+  if (status === 403) {
+    return `Swop would not allow this (HTTP 403).${said} If that names a missing permission, reconnecting Swop and approving it is the fix; if it names a cap, a limit or an approval link, give the user that instead of retrying.${confirmTail}`;
+  }
+  if (status === 429) {
+    return `Swop is rate-limiting this connection (HTTP 429).${said} Wait a few seconds before a single retry; never loop.${confirmTail}`;
+  }
+  if (status >= 500) {
+    return `Swop had a server error (HTTP ${status}).${said}${confirmTail || " This is Swop's side, not the request: retry once, then tell the user."}`;
+  }
+  return `Swop rejected the request (HTTP ${status}).${said || ' No reason given.'} Fix the arguments rather than retrying unchanged.${confirmTail}`;
+}
+
 async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
   try {
     return ok(await fn());
@@ -452,6 +502,11 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
         'Not linked to a Swop account. Connect the Swop connector with authentication (OAuth) to use this tool.',
       );
     }
+    // A confirm body is the second half of a two-step money call, which is the
+    // one failure where "it failed" is the expensive guess — see
+    // authedFailureMessage.
+    const isConfirm =
+      !!body && typeof body === 'object' && (body as Record<string, unknown>).confirm === true;
     const res = await fetch(new URL(path, SWOP_API_BASE).toString(), {
       method,
       headers: {
@@ -461,9 +516,14 @@ export function buildServer(authHeader?: string, opts: { profile?: ServerProfile
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(timeoutMs),
+    }).catch((err: unknown): never => {
+      // Timeout or network failure: the request may well have landed upstream.
+      throw new Error(
+        authedFailureMessage(null, err instanceof Error ? err.message : String(err), isConfirm),
+      );
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) throw new Error(`Swop API ${res.status}: ${json.message ?? 'request failed'}`);
+    if (!res.ok) throw new Error(authedFailureMessage(res.status, upstreamDetail(json), isConfirm));
     return json.data ?? json;
   };
 
