@@ -5,12 +5,31 @@
 //
 // Asserts: tools/list counts, that no money-moving / trading / prediction tool
 // leaks into the commerce endpoint, that server instructions are sent, the
-// path-based RFC 9728 metadata for each endpoint, and the 401 challenge's
-// resource_metadata URL.
+// path-based RFC 9728 metadata for each endpoint, the 401 challenge's
+// resource_metadata URL, and the next action in each authed-call failure.
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { buildApp } from '../src/app.js';
-import { COMMERCE_EXCLUDED_TOOL_NAMES } from '../src/server.js';
+import { authedFailureMessage, COMMERCE_EXCLUDED_TOOL_NAMES } from '../src/server.js';
+
+// A failed authed call is read by a model, not a human: it has to name the next
+// action, and on the confirm step of a money call it must never send the model
+// back to a fresh preview (that is how one send becomes two).
+function checkAuthedFailureMessages() {
+  assert.match(authedFailureMessage(401, '', false), /reconnect Swop/);
+  assert.match(authedFailureMessage(403, 'missing scope wallet.send', false), /missing scope wallet\.send/);
+  assert.match(authedFailureMessage(400, '', false), /No reason given/);
+  assert.match(authedFailureMessage(503, 'upstream down', false), /retry once/i);
+  assert.match(authedFailureMessage(null, 'timeout', false), /Could not reach Swop/);
+
+  for (const status of [null, 400, 401, 403, 429, 500] as Array<number | null>) {
+    const msg = authedFailureMessage(status, 'boom', true);
+    assert.match(msg, /Do NOT build a new preview/, `confirm failure ${status} must forbid a new preview`);
+    assert.match(msg, /re-confirm the SAME previewId/, `confirm failure ${status} must name the safe retry`);
+  }
+  // Read paths and preview steps must not carry the confirm warning.
+  assert.doesNotMatch(authedFailureMessage(500, 'boom', false), /previewId/);
+}
 
 const rpc = async (url: string, body: unknown) => {
   const res = await fetch(url, {
@@ -23,6 +42,8 @@ const rpc = async (url: string, body: unknown) => {
 };
 
 async function main() {
+  checkAuthedFailureMessages();
+
   let base = process.argv[2]?.replace(/\/$/, '');
   let close = () => {};
   if (!base) {
